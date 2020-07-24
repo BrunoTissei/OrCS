@@ -219,7 +219,7 @@ class processor_t {
 		processor_t();
 		~processor_t();
 	    void allocate();
-	    void clock();
+        void clock();
 		void statistics();
 		void printConfiguration();
 		void printCache(FILE *output);
@@ -349,6 +349,7 @@ class processor_t {
 		// Funcional Unitis - FUs
 		// ======================
 		// Integer FUs
+        /*
 		uint64_t *fu_int_alu;
 		uint64_t *fu_int_mul;
 		uint64_t *fu_int_div;
@@ -359,6 +360,8 @@ class processor_t {
 		// Memory FUs
 		uint64_t *fu_mem_load;
 		uint64_t *fu_mem_store;
+        */
+
 		uint64_t *fu_mem_hive;
 		uint64_t *fu_mem_vima;
 		//container to accelerate  execution

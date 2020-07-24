@@ -28,6 +28,10 @@ class uop_package_t{
 
     bool is_vima;
 
+    uint32_t latency;
+    uint32_t thoughput;
+    std::string functional_unit;
+
     void opcode_to_uop(uint64_t uop_number, instruction_operation_t uop_operation, uint64_t memory_address, uint32_t memory_size, opcode_package_t opcode);
     bool operator==(const uop_package_t &package);
     void package_clean();

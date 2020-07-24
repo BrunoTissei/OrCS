@@ -124,6 +124,7 @@ opcode_package_t x86_to_static(const INS& ins) {
     }
 
 
+    /*
     xed_decoded_inst_t* xedd = INS_XedDec(ins);
     const xed_inst_t* xi = xed_decoded_inst_inst(xedd);
     xed_iclass_enum_t iclass = xed_inst_iclass(xi);
@@ -560,6 +561,7 @@ opcode_package_t x86_to_static(const INS& ins) {
                                 }
                                 break;
     }
+    */
 
     return NewInstruction;
 }

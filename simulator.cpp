@@ -207,6 +207,10 @@ int main(int argc, char **argv) {
     //Memory Controller
     //==================
     orcs_engine.memory_controller->allocate();
+    //==================
+    //Instruction Set
+    //==================
+    orcs_engine.instruction_set->allocate();
 
     for (uint32_t i = 0; i < NUMBER_OF_PROCESSORS; i++){
         //==================

@@ -30,6 +30,7 @@
 #include <map>
 #include <cassert>
 #include <libconfig.h++>
+#include <unordered_map>
 
 // ============================================================================
 /// Classes
@@ -65,6 +66,7 @@ class uop_package_t;
 class reorder_buffer_line_t;
 class memory_order_buffer_line_t;
 class processor_t;
+class instruction_set_t;
 
 //  =========================================//
 // Cache Classes
@@ -164,6 +166,7 @@ extern orcs_engine_t orcs_engine;
 #include "./processor/reorder_buffer_line.hpp"
 #include "./processor/memory_order_buffer_line.hpp"
 #include "./processor/processor.hpp"
+#include "./processor/instruction_set.hpp"
 //  =========================================//
 // Branch Predictor includes
 //  =========================================//

@@ -20,6 +20,7 @@ processor_t::processor_t()
 	this->reorderBuffer = NULL;
 	// ======FUs=========
 	// Integer FUs
+	/*
 	this->fu_int_alu = NULL;
 	this->fu_int_mul = NULL;
 	this->fu_int_div = NULL;
@@ -30,6 +31,7 @@ processor_t::processor_t()
 	// Memory FUs
 	this->fu_mem_load = NULL;
 	this->fu_mem_store = NULL;
+	*/
 }
 processor_t::~processor_t()
 {
@@ -398,6 +400,8 @@ void processor_t::allocate() {
 	this->request_DRAM=0;
 	// =========================================================================================
 	//allocating fus int
+   
+	/*
 	this->fu_int_alu = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_ALU, 0);
 	this->fu_int_mul = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_MUL, 0);
 	this->fu_int_div = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_DIV, 0);
@@ -408,6 +412,8 @@ void processor_t::allocate() {
 	//allocating fus memory
 	this->fu_mem_load = utils_t::template_allocate_initialize_array<uint64_t>(LOAD_UNIT, 0);
 	this->fu_mem_store = utils_t::template_allocate_initialize_array<uint64_t>(STORE_UNIT, 0);
+	*/
+
 	if (get_HAS_HIVE()) this->fu_mem_hive = utils_t::template_allocate_initialize_array<uint64_t>(HIVE_UNIT, 0);
 	if (get_HAS_VIMA()) this->fu_mem_vima = utils_t::template_allocate_initialize_array<uint64_t>(VIMA_UNIT, 0);
 	// reserving space to uops on UFs pipeline, waitng to executing ends
@@ -911,9 +917,9 @@ void processor_t::decode(){
 			{
 				// ===== Read Regs =============================================
 				/// Clear RRegs
-				for (uint32_t i = 0; i < MAX_REGISTERS; i++)
+                for (uint32_t i = 0; i < MAX_REGISTERS; i++)
 				{
-					new_uop.read_regs[i] = POSITION_FAIL;
+                    new_uop.read_regs[i] = POSITION_FAIL;
 				}
 				/// Insert BASE and INDEX into RReg
 				new_uop.read_regs[0] = this->fetchBuffer.front()->base_reg;
@@ -1158,7 +1164,7 @@ void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 	}
 
 	/// Control the Register Dependency - Register WRITE
-	for (uint32_t k = 0; k < MAX_REGISTERS; k++)  
+	for (uint32_t k = 0; k < MAX_REGISTERS; k++)
 	{
 		this->add_registerWrite();
 		if (new_rob_line->uop.write_regs[k] < 0)
