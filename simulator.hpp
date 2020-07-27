@@ -65,6 +65,7 @@ class disambiguation_hashed_t;
 class uop_package_t;
 class reorder_buffer_line_t;
 class memory_order_buffer_line_t;
+class functional_unit_t;
 class processor_t;
 class instruction_set_t;
 

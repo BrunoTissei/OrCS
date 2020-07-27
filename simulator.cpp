@@ -1,4 +1,5 @@
 #include "./simulator.hpp"
+#include <iostream>
 
 orcs_engine_t orcs_engine;
 
@@ -203,14 +204,19 @@ int main(int argc, char **argv) {
     //Cache Manager
     //==================
     orcs_engine.cacheManager->allocate(NUMBER_OF_PROCESSORS);
+    std::cout << "DONE CACHE" << std::endl;
+
     //==================
     //Memory Controller
     //==================
     orcs_engine.memory_controller->allocate();
+    std::cout << "DONE MEMORY" << std::endl;
+
     //==================
     //Instruction Set
     //==================
     orcs_engine.instruction_set->allocate();
+    std::cout << "DONE INSTRUCTION" << std::endl;
 
     for (uint32_t i = 0; i < NUMBER_OF_PROCESSORS; i++){
         //==================

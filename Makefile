@@ -39,6 +39,7 @@ SRC_MEMORY_DISAMBIGUATION = $(FD_PROCESSOR)/$(FD_DISAMBIGUATION)/disambiguation_
 SRC_PROCESSOR =		$(FD_PROCESSOR)/processor.cpp\
 					$(FD_PROCESSOR)/reorder_buffer_line.cpp\
 					$(FD_PROCESSOR)/memory_order_buffer_line.cpp\
+					$(FD_PROCESSOR)/instruction_set.cpp
 
 SRC_BRANCH_PREDICTOR =	$(FD_BRANCH_PREDICTOR)/branch_predictor.cpp\
 						$(FD_BRANCH_PREDICTOR)/piecewise.cpp

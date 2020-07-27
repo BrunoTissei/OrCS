@@ -1,5 +1,24 @@
 // ============================================================================
 // ============================================================================
+
+class functional_unit_t {
+public:
+    uint64_t *slot;
+    uint32_t size;
+    uint32_t dispatch_cnt;
+
+    functional_unit_t() {}
+    ~functional_unit_t() {
+        utils_t::template_delete_array<uint64_t>(this->slot);
+    }
+
+    void allocate(uint32_t size) {
+        this->size = size;
+        this->dispatch_cnt = 0;
+        this->slot = utils_t::template_allocate_initialize_array<uint64_t>(size, 0);
+    }
+};
+
 class processor_t {
     private:    
 	//=============
@@ -348,22 +367,15 @@ class processor_t {
 		// ======================
 		// Funcional Unitis - FUs
 		// ======================
-		// Integer FUs
-        /*
-		uint64_t *fu_int_alu;
-		uint64_t *fu_int_mul;
-		uint64_t *fu_int_div;
-		// Floating Points FUs
-		uint64_t *fu_fp_alu;
-		uint64_t *fu_fp_mul;
-		uint64_t *fu_fp_div;
-		// Memory FUs
-		uint64_t *fu_mem_load;
-		uint64_t *fu_mem_store;
-        */
+        std::vector<functional_unit_t> functional_units;
 
-		uint64_t *fu_mem_hive;
-		uint64_t *fu_mem_vima;
+		// Memory FUs
+        functional_unit_t fu_mem_load;
+        functional_unit_t fu_mem_store;
+
+        functional_unit_t fu_mem_hive;
+        functional_unit_t fu_mem_vima;
+
 		//container to accelerate  execution
 		container_ptr_reorder_buffer_line_t unified_functional_units;
 

@@ -22,6 +22,7 @@ void instruction_set_t::allocate() {
         fu_id[name] = i;
         fu_size[i] = size;
     }
+    std::cout << "Parsed functional units" << std::endl;
 
     
     // Parse uops
@@ -32,11 +33,12 @@ void instruction_set_t::allocate() {
         std::string name = cfg_uops[i]["NAME"];
         uint32_t lat = cfg_uops[i]["LATENCY"];
         uint32_t tp  = cfg_uops[i]["THROUGHPUT"];
-        uint32_t fu  = cfg_uops[i]["FU"];
+        std::string fu  = cfg_uops[i]["FU"];
 
         uops_id[name] = i;
         uops[i] = uop_info_t{lat, tp, fu_id[fu]};
     }
+    std::cout << "Parsed uops" << std::endl;
 
 
     // Parse instructions
@@ -57,4 +59,5 @@ void instruction_set_t::allocate() {
             uops_per_instruction[i][j] = u_id;
         }
     }
+    std::cout << "Parsed instructions" << std::endl;
 }

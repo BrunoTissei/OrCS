@@ -279,6 +279,10 @@ bool trace_reader_t::trace_string_to_opcode(char *input_string, opcode_package_t
     sub_string = strtok_r(input_string, " ", &tmp_ptr);
     strcpy(opcode->opcode_assembly, sub_string);
 
+    // Set instruction_id retrieved from instructions_set's map
+    opcode->instruction_id = orcs_engine.instruction_set->
+        instructions_id[std::string(opcode->opcode_assembly)];
+
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     opcode->opcode_operation = instruction_operation_t(strtoul(sub_string, NULL, 10));
 
@@ -482,7 +486,7 @@ bool trace_reader_t::pin_next(opcode_package_t *m) {
     strcpy(m->opcode_assembly, sub_string);
 
     // Set instruction_id retrieved from instructions_set's map
-    m->instruction_id = orcs_engine.instruction_id[std::string(m->opcode_assembly)];
+    m->instruction_id = orcs_engine.instruction_set->instructions_id[std::string(m->opcode_assembly)];
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     m->opcode_operation = static_cast<instruction_operation_t> (std::strtoul(sub_string, NULL, 10));

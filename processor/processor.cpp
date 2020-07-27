@@ -28,10 +28,10 @@ processor_t::processor_t()
 	this->fu_fp_alu = NULL;
 	this->fu_fp_mul = NULL;
 	this->fu_fp_div = NULL;
-	// Memory FUs
-	this->fu_mem_load = NULL;
-	this->fu_mem_store = NULL;
 	*/
+	// Memory FUs
+	//this->fu_mem_load = NULL;
+	//this->fu_mem_store = NULL;
 }
 processor_t::~processor_t()
 {
@@ -54,6 +54,8 @@ processor_t::~processor_t()
 	utils_t::template_delete_array<reorder_buffer_line_t>(this->reorderBuffer);
 	//delete RAT
 	utils_t::template_delete_array<reorder_buffer_line_t *>(this->register_alias_table);
+
+    /*
 	//deleting fus int
 	utils_t::template_delete_array<uint64_t>(this->fu_int_alu);
 	utils_t::template_delete_array<uint64_t>(this->fu_int_mul);
@@ -67,6 +69,7 @@ processor_t::~processor_t()
 	utils_t::template_delete_array<uint64_t>(this->fu_mem_store);
 	utils_t::template_delete_array<uint64_t>(this->fu_mem_hive);
 	utils_t::template_delete_array<uint64_t>(this->fu_mem_vima);
+    */
 	// =====================================================================
 
 	//delete[] INST_ASSOCIATIVITY;
@@ -399,23 +402,26 @@ void processor_t::allocate() {
 	// =========================================================================================
 	this->request_DRAM=0;
 	// =========================================================================================
-	//allocating fus int
    
-	/*
-	this->fu_int_alu = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_ALU, 0);
-	this->fu_int_mul = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_MUL, 0);
-	this->fu_int_div = utils_t::template_allocate_initialize_array<uint64_t>(INTEGER_DIV, 0);
-	//allocating fus fp
-	this->fu_fp_alu = utils_t::template_allocate_initialize_array<uint64_t>(FP_ALU, 0);
-	this->fu_fp_mul = utils_t::template_allocate_initialize_array<uint64_t>(FP_MUL, 0);
-	this->fu_fp_div = utils_t::template_allocate_initialize_array<uint64_t>(FP_DIV, 0);
-	//allocating fus memory
-	this->fu_mem_load = utils_t::template_allocate_initialize_array<uint64_t>(LOAD_UNIT, 0);
-	this->fu_mem_store = utils_t::template_allocate_initialize_array<uint64_t>(STORE_UNIT, 0);
-	*/
 
-	if (get_HAS_HIVE()) this->fu_mem_hive = utils_t::template_allocate_initialize_array<uint64_t>(HIVE_UNIT, 0);
-	if (get_HAS_VIMA()) this->fu_mem_vima = utils_t::template_allocate_initialize_array<uint64_t>(VIMA_UNIT, 0);
+	// Alocate functional units
+    int num_fus = orcs_engine.instruction_set->fu_size.size();
+    this->functional_units.resize(num_fus);
+
+    for (int i = 0; i < num_fus; ++i) {
+        this->functional_units[i].allocate(orcs_engine.instruction_set->fu_size[i]);
+    }
+
+	// Allocate memory functional units 
+	this->fu_mem_load.allocate(LOAD_UNIT);
+	this->fu_mem_store.allocate(STORE_UNIT);
+
+	if (get_HAS_HIVE()) 
+        this->fu_mem_hive.allocate(HIVE_UNIT);
+
+	if (get_HAS_VIMA()) 
+        this->fu_mem_vima.allocate(VIMA_UNIT);
+
 	// reserving space to uops on UFs pipeline, waitng to executing ends
 	this->unified_reservation_station.reserve(ROB_SIZE);
 	// reserving space to uops on UFs pipeline, waitng to executing ends
@@ -791,6 +797,7 @@ void processor_t::decode(){
 										this->fetchBuffer.front()->opcode_operation,
 										0,
 										1,
+                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
 										*this->fetchBuffer.front());
 				
 				new_uop.is_hive = true;
@@ -813,6 +820,7 @@ void processor_t::decode(){
 										this->fetchBuffer.front()->opcode_operation,
 										this->fetchBuffer.front()->read_address,
 										this->fetchBuffer.front()->read_size,
+                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
 										*this->fetchBuffer.front());
 				
 				new_uop.is_hive = true;
@@ -838,6 +846,7 @@ void processor_t::decode(){
 										this->fetchBuffer.front()->opcode_operation,
 										this->fetchBuffer.front()->write_address,
 										this->fetchBuffer.front()->write_size,
+                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
 										*this->fetchBuffer.front());
 				
 				new_uop.is_hive = true;
@@ -876,6 +885,7 @@ void processor_t::decode(){
 										this->fetchBuffer.front()->opcode_operation,
 										0,
 										1,
+                                        this->LATENCY_MEM_VIMA, this->WAIT_NEXT_MEM_VIMA, &(this->fu_mem_vima),
 										*this->fetchBuffer.front());
 				
 				new_uop.is_hive = false;
@@ -910,6 +920,7 @@ void processor_t::decode(){
 								  INSTRUCTION_OPERATION_MEM_LOAD,
 								  this->fetchBuffer.front()->read_address,
 								  this->fetchBuffer.front()->read_size,
+                                  this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
 								  *this->fetchBuffer.front());
 			
 			//SE OP DIFERE DE LOAD, ZERA REGISTERS
@@ -953,6 +964,7 @@ void processor_t::decode(){
 								  INSTRUCTION_OPERATION_MEM_LOAD,
 								  this->fetchBuffer.front()->read2_address,
 								  this->fetchBuffer.front()->read2_size,
+                                  this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
 								  *this->fetchBuffer.front());
 			//SE OP DIFERE DE LOAD, ZERA REGISTERS
 			if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_LOAD)
@@ -991,6 +1003,66 @@ void processor_t::decode(){
 			this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_LOAD &&
 			this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_STORE)
 		{
+            uint32_t inst_id = this->fetchBuffer.front()->instruction_id;
+            
+            instruction_set_t *iset = orcs_engine.instruction_set;
+            std::vector<uint32_t> &uops = iset->uops_per_instruction[inst_id];
+            
+            // Iterate over uops from instruction
+            for (uint32_t uop_idx : uops) {
+                uop_info_t uop = iset->uops[uop_idx];
+
+                new_uop.package_clean();
+                new_uop.opcode_to_uop(this->uopCounter++,
+                    this->fetchBuffer.front()->opcode_operation,
+                    0, 0, 
+                    uop.latency, uop.throughput, &(this->functional_units[uop.fu_id]),
+                    *this->fetchBuffer.front());
+
+                if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2) {
+
+                    // ===== Read Regs =============================================
+                    //registers /258 aux onde pos[i] = fail
+                    bool inserted_258 = false;
+                    for (uint32_t i = 0; i < MAX_REGISTERS; i++) {
+                        if (new_uop.read_regs[i] == POSITION_FAIL) {
+                            new_uop.read_regs[i] = 258;
+                            inserted_258 = true;
+                            break;
+                        }
+                    }
+
+                    ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS);
+                }
+
+                if (this->fetchBuffer.front()->is_write) {
+
+                    // ===== Write Regs =============================================
+                    //registers /258 aux onde pos[i] = fail
+                    bool inserted_258 = false;
+                    for (uint32_t i = 0; i < MAX_REGISTERS; i++) {
+                        if (new_uop.write_regs[i] == POSITION_FAIL) {
+                            new_uop.write_regs[i] = 258;
+                            inserted_258 = true;
+                            break;
+                        }
+                    }
+
+                    ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS);
+                }
+
+                new_uop.updatePackageWait(DECODE_LATENCY);
+                statusInsert = this->decodeBuffer.push_back(new_uop);
+
+                if (DECODE_DEBUG){
+                    ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str());
+                }
+
+                ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido");
+            }
+
+
+            /*
 			new_uop.package_clean();
 			new_uop.opcode_to_uop(this->uopCounter++,
 								  this->fetchBuffer.front()->opcode_operation,
@@ -1040,10 +1112,11 @@ void processor_t::decode(){
 				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 			}
 			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+            */
 		}
 		// =====================
 		//Decode Branch
-		// =====================https://old.reddit.com/r/rupaulsdragrace/
+		// =====================
 		if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_BRANCH)
 		{
 			new_uop.package_clean();
@@ -1051,6 +1124,7 @@ void processor_t::decode(){
 								  INSTRUCTION_OPERATION_BRANCH,
 								  0,
 								  0,
+                                  this->LATENCY_INTEGER_ALU, this->WAIT_NEXT_INT_ALU, &(this->functional_units[0]),
 								  *this->fetchBuffer.front());
 			if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2)
 			{
@@ -1102,6 +1176,7 @@ void processor_t::decode(){
 								  INSTRUCTION_OPERATION_MEM_STORE,
 								  this->fetchBuffer.front()->write_address,
 								  this->fetchBuffer.front()->write_size,
+                                  this->LATENCY_MEM_STORE, this->WAIT_NEXT_MEM_STORE, &(this->fu_mem_store),
 								  *this->fetchBuffer.front());
 			//
 			if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_STORE){
@@ -1131,7 +1206,7 @@ void processor_t::decode(){
 			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
 		}
 
-		if (PROCESSOR_DEBUG) ORCS_PRINTF ("%lu processor %u decode(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", orcs_engine.get_global_cycle(), this->processor_id, new_uop.uop_number, get_enum_instruction_operation_char (new_uop.uop_operation), new_uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed)
+		if (PROCESSOR_DEBUG) ORCS_PRINTF ("%lu processor %u decode(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", orcs_engine.get_global_cycle(), this->processor_id, new_uop.uop_number, get_enum_instruction_operation_char (new_uop.uop_operation), new_uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed);
 		this->fetchBuffer.pop_front();
 	}
 }
@@ -1506,6 +1581,8 @@ void processor_t::dispatch(){
 		//control variables
 		uint32_t total_dispatched = 0;
 		/// Control the total dispatched per FU
+
+        /*
 		uint32_t fu_int_alu = 0;
 		uint32_t fu_int_mul = 0;
 		uint32_t fu_int_div = 0;
@@ -1518,11 +1595,14 @@ void processor_t::dispatch(){
 		uint32_t fu_mem_store = 0;
 		uint32_t fu_mem_hive = 0;
 		uint32_t fu_mem_vima = 0;
+        */
 
 		for (uint32_t i = 0; i < this->unified_reservation_station.size() && i < UNIFIED_RS; i++)
 		{
 			//pointer to entry
 			reorder_buffer_line_t *rob_line = this->unified_reservation_station[i];
+            uop_package_t *uop = &(rob_line->uop);
+
 			if (DISPATCH_DEBUG){
 				if(orcs_engine.get_global_cycle()>WAIT_CYCLE){
 					ORCS_PRINTF("cycle %lu\n", orcs_engine.get_global_cycle())
@@ -1537,13 +1617,29 @@ void processor_t::dispatch(){
 				break;
 			}
 
-			if ((rob_line->uop.readyAt <= orcs_engine.get_global_cycle()) &&
+			if ((uop->readyAt <= orcs_engine.get_global_cycle()) &&
 				(rob_line->wait_reg_deps_number == 0)){
 				ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, "Error, uop not ready being dispatched\n %s\n", rob_line->content_to_string().c_str())
 				ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_RENAME, "Error, uop not in Rename to rename stage\n %s\n",rob_line->content_to_string().c_str())
 
 				//if dispatched
 				bool dispatched = false;
+
+                functional_unit_t *fu = uop->functional_unit;
+
+                if (fu->dispatch_cnt < fu->size) {
+                    for (uint8_t k = 0; k < fu->size; ++k) {
+                        if (fu->slot[k] <= orcs_engine.get_global_cycle()) {
+                            fu->slot[k] = orcs_engine.get_global_cycle() + uop->throughput; 
+                            fu->dispatch_cnt++;
+                            dispatched = true;
+                            rob_line->stage = PROCESSOR_STAGE_EXECUTION;
+                            uop->updatePackageWait(uop->latency);
+                        }
+                    }
+                }
+
+                /*
 				switch (rob_line->uop.uop_operation)
 				{
 				// NOP operation
@@ -1765,15 +1861,18 @@ void processor_t::dispatch(){
 					ERROR_PRINTF("Invalid instruction LAST||BARRIER||HMC_ROA||HMC_ROWA being dispatched.\n");
 					break;
 				} //end switch
+                */
+
 				//remover os postos em execucao aqui
 				if (dispatched == true)
 				{
-				if (DISPATCH_DEBUG){
-					if(orcs_engine.get_global_cycle()>WAIT_CYCLE){
-						ORCS_PRINTF("Dispatched %s\n", rob_line->content_to_string().c_str())
-						ORCS_PRINTF("===================================================================\n")
-					}
-				}
+                    if (DISPATCH_DEBUG) {
+                        if(orcs_engine.get_global_cycle()>WAIT_CYCLE) {
+                            ORCS_PRINTF("Dispatched %s\n", rob_line->content_to_string().c_str())
+                            ORCS_PRINTF("===================================================================\n")
+                        }
+                    }
+
 					// update Dispatched
 					total_dispatched++;
 					// insert on FUs waiting structure
@@ -1783,7 +1882,13 @@ void processor_t::dispatch(){
 					i--;
 				} //end if dispatched
 
-				if (PROCESSOR_DEBUG) ORCS_PRINTF ("%lu processor %u dispatch(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", orcs_engine.get_global_cycle(), this->processor_id, rob_line->uop.uop_number, get_enum_instruction_operation_char (rob_line->uop.uop_operation), rob_line->uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed)
+				if (PROCESSOR_DEBUG) 
+                    ORCS_PRINTF ("%lu processor %u dispatch(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", 
+                            orcs_engine.get_global_cycle(), 
+                            this->processor_id, rob_line->uop.uop_number, 
+                            get_enum_instruction_operation_char (rob_line->uop.uop_operation), 
+                            rob_line->uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed);
+
 			}	 //end if robline is ready
 		}		  //end for
 		// sleep(1);

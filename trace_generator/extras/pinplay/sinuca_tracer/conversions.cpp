@@ -21,6 +21,149 @@
     #define TRACE_GENERATOR_DEBUG_PRINTF(...)
 #endif
 
+unsigned int hex_to_dec(char x) {
+    if (x >= '0' && x <= '9')
+        return x - '0';
+    return (toupper(x) - 'A') + 10U;
+}
+
+unsigned int ascii_to_hex(const char *src,
+                          xed_uint8_t *dst,
+                          unsigned int max_bytes)
+{
+    const unsigned int len = strlen(src);
+    memset(dst, 0, max_bytes);
+
+    for (unsigned int p = 0, i = 0; i < len / 2; ++i, p += 2)
+        dst[i] = (xed_uint8_t) (hex_to_dec(src[p]) * 16 + hex_to_dec(src[p+1]));
+    return len/2;
+}
+
+std::string to_string(xed_uint8_t x) {
+    std::string res;
+    while (x) {
+        res.push_back((x % 10) + '0');
+        x /= 10;
+    }
+    return res;
+}
+
+std::string gen_icode(xed_decoded_inst_t *xedd) {
+    #define TBUFSZ 90
+    char tbuf[TBUFSZ];
+
+    const xed_inst_t* xi = xed_decoded_inst_inst(xedd);
+    unsigned int noperands = xed_inst_noperands(xi);
+
+
+    tbuf[0] = 0;
+    std::string result = "";
+    for (unsigned int i = 0; i < noperands; ++i) {
+        const xed_operand_t* op = xed_inst_operand(xi, i);
+        xed_operand_enum_t op_name = xed_operand_name(op);
+
+        std::string ops = "";
+
+        switch (op_name) {
+            case XED_OPERAND_AGEN:
+                break;
+
+            case XED_OPERAND_MEM0:
+            case XED_OPERAND_MEM1: {
+                // we print memops in a different function
+                xed_strcpy(tbuf, "(see below)");
+                ops += "M";
+                break;
+            }
+
+            // pointer and rel
+            case XED_OPERAND_PTR:   
+            case XED_OPERAND_RELBR: {
+                xed_uint_t disp_bits =
+                    xed_decoded_inst_get_branch_displacement_width(xedd);
+                if (disp_bits) {
+                    xed_int32_t disp =
+                        xed_decoded_inst_get_branch_displacement(xedd);
+                    snprintf(tbuf, TBUFSZ,
+                            "BRANCH_DISPLACEMENT_BYTES= %d %08x",
+                            disp_bits,disp);
+                }
+
+                ops += "Rel";
+                break;
+            }
+
+            // immediates
+            case XED_OPERAND_IMM0: {
+                char buf[64];
+                const unsigned int no_leading_zeros=0;
+                xed_uint_t ibits;
+                const xed_bool_t lowercase = 1;
+                ibits = xed_decoded_inst_get_immediate_width_bits(xedd);
+                if (xed_decoded_inst_get_immediate_is_signed(xedd)) {
+                    xed_uint_t rbits = ibits?ibits:8;
+                    xed_int32_t x = xed_decoded_inst_get_signed_immediate(xedd);
+                    xed_uint64_t y = XED_STATIC_CAST(xed_uint64_t,
+                            xed_sign_extend_arbitrary_to_64(
+                                (xed_uint64_t)x,
+                                ibits));
+                    xed_itoa_hex_ul(buf, y, rbits, no_leading_zeros, 64, lowercase);
+                }
+                else {
+                    xed_uint64_t x =xed_decoded_inst_get_unsigned_immediate(xedd);
+                    xed_uint_t rbits = ibits?ibits:16;
+                    xed_itoa_hex_ul(buf, x, rbits, no_leading_zeros, 64, lowercase);
+                }
+                ops += "I";
+                snprintf(tbuf,TBUFSZ,
+                        "0x%s(%db)",buf,ibits);
+                break;
+            }
+            case XED_OPERAND_IMM1: { // 2nd immediate is always 1 byte.
+                xed_uint8_t x = xed_decoded_inst_get_second_immediate(xedd);
+                snprintf(tbuf,TBUFSZ,
+                        "0x%02x",(int)x);
+
+                ops += "I";
+                break;
+            }
+            case XED_OPERAND_REG0:
+            case XED_OPERAND_REG1:
+            case XED_OPERAND_REG2:
+            case XED_OPERAND_REG3:
+            case XED_OPERAND_REG4:
+            case XED_OPERAND_REG5:
+            case XED_OPERAND_REG6:
+            case XED_OPERAND_REG7:
+            case XED_OPERAND_REG8:
+            case XED_OPERAND_BASE0:
+            case XED_OPERAND_BASE1: {
+                xed_reg_enum_t r = xed_decoded_inst_get_reg(xedd, op_name);
+                snprintf(tbuf,TBUFSZ,
+                        "%s=%s", 
+                        xed_operand_enum_t2str(op_name),
+                        xed_reg_enum_t2str(r));
+                ops += "R";
+                break;
+            }
+            default: 
+                printf("need to add support for printing operand: %s",
+                        xed_operand_enum_t2str(op_name));
+                assert(0);      
+        }
+
+        auto vis = xed_operand_operand_visibility(op);
+        if (vis == XED_OPVIS_EXPLICIT && ops.size() > 0) {
+            result += "+";
+            xed_uint_t bits = xed_decoded_inst_operand_length_bits(xedd, i);
+            ops += to_string(bits);
+            result += ops;
+        }
+    }
+
+    return std::string(xed_iform_enum_t2str(xed_decoded_inst_get_iform_enum(xedd))) + result;
+}
+
 //==============================================================================
 // Translate the x86 Instructions to Simulator Instruction
 opcode_package_t x86_to_static(const INS& ins) {
@@ -29,7 +172,7 @@ opcode_package_t x86_to_static(const INS& ins) {
     uint32_t i;
     opcode_package_t NewInstruction;
 
-    strcpy(NewInstruction.opcode_assembly, INS_Mnemonic(ins).c_str());
+    //strcpy(NewInstruction.opcode_assembly, INS_Mnemonic(ins).c_str());
     NewInstruction.opcode_address = INS_Address(ins);
     NewInstruction.opcode_size = INS_Size(ins);
 
@@ -57,7 +200,6 @@ opcode_package_t x86_to_static(const INS& ins) {
 
     NewInstruction.is_predicated = INS_IsPredicated(ins);
     NewInstruction.is_prefetch = INS_IsPrefetch(ins);
-
 
     if (NewInstruction.is_read) {
         NewInstruction.opcode_operation = INSTRUCTION_OPERATION_MEM_LOAD;
@@ -123,11 +265,12 @@ opcode_package_t x86_to_static(const INS& ins) {
         }
     }
 
-
-    /*
     xed_decoded_inst_t* xedd = INS_XedDec(ins);
     const xed_inst_t* xi = xed_decoded_inst_inst(xedd);
     xed_iclass_enum_t iclass = xed_inst_iclass(xi);
+
+    std::string icode = gen_icode(xedd);
+    strcpy(NewInstruction.opcode_assembly, icode.c_str());
 
     switch (iclass) {
         //==================================================================
@@ -561,7 +704,6 @@ opcode_package_t x86_to_static(const INS& ins) {
                                 }
                                 break;
     }
-    */
 
     return NewInstruction;
 }
