@@ -3,6 +3,7 @@
 
 class functional_unit_t {
 public:
+    uint32_t id;
     uint64_t *slot;
     uint32_t size;
     uint32_t dispatch_cnt;
@@ -12,7 +13,8 @@ public:
         utils_t::template_delete_array<uint64_t>(this->slot);
     }
 
-    void allocate(uint32_t size) {
+    void allocate(uint32_t id, uint32_t size) {
+        this->id = id;
         this->size = size;
         this->dispatch_cnt = 0;
         this->slot = utils_t::template_allocate_initialize_array<uint64_t>(size, 0);

@@ -609,23 +609,25 @@ void processor_t::allocate() {
 	this->request_DRAM=0;
 	// =========================================================================================
 
+    uint32_t fu_cnt = 0;
+
 	// Alocate functional units
     int num_fus = orcs_engine.instruction_set->fu_size.size();
     this->functional_units.resize(num_fus);
 
     for (int i = 0; i < num_fus; ++i) {
-        this->functional_units[i].allocate(orcs_engine.instruction_set->fu_size[i]);
+        this->functional_units[i].allocate(fu_cnt++, orcs_engine.instruction_set->fu_size[i]);
     }
 
 	// Allocate memory functional units 
-	this->fu_mem_load.allocate(LOAD_UNIT);
-	this->fu_mem_store.allocate(STORE_UNIT);
+	this->fu_mem_load.allocate(fu_cnt++, LOAD_UNIT);
+	this->fu_mem_store.allocate(fu_cnt++, STORE_UNIT);
 
 	if (get_HAS_HIVE()) 
-        this->fu_mem_hive.allocate(HIVE_UNIT);
+        this->fu_mem_hive.allocate(fu_cnt++, HIVE_UNIT);
 
 	if (get_HAS_VIMA()) 
-        this->fu_mem_vima.allocate(VIMA_UNIT);
+        this->fu_mem_vima.allocate(fu_cnt++, VIMA_UNIT);
 
 	// reserving space to uops on UFs pipeline, waitng to executing ends
 	this->unified_reservation_station.reserve(ROB_SIZE);
@@ -1266,59 +1268,6 @@ void processor_t::decode(){
 
                 ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido");
             }
-
-
-            /*
-			new_uop.package_clean();
-			new_uop.opcode_to_uop(this->uopCounter++,
-								  this->fetchBuffer.front()->opcode_operation,
-								  0,
-								  0,
-								  *this->fetchBuffer.front());
-
-			if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2)
-			{
-				// printf("\n UOP Created %s \n",new_uop.content_to_string().c_str());
-				// ===== Read Regs =============================================
-				//registers /258 aux onde pos[i] = fail
-				bool inserted_258 = false;
-				for (uint32_t i = 0; i < MAX_REGISTERS; i++)
-				{
-					// ORCS_PRINTF("read reg %d\n",new_uop.read_regs[i])
-					if (new_uop.read_regs[i] == POSITION_FAIL)
-					{
-						// ORCS_PRINTF("read reg2 %d\n",new_uop.read_regs[i])
-						new_uop.read_regs[i] = 258;
-						inserted_258 = true;
-						break;
-					}
-				}
-				ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS)
-			}
-			if (this->fetchBuffer.front()->is_write)
-			{
-				// ===== Write Regs =============================================
-				//registers /258 aux onde pos[i] = fail
-				bool inserted_258 = false;
-				for (uint32_t i = 0; i < MAX_REGISTERS; i++)
-				{
-					if (new_uop.write_regs[i] == POSITION_FAIL)
-					{
-						new_uop.write_regs[i] = 258;
-						inserted_258 = true;
-						break;
-					}
-				}
-				ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS)
-				// assert(!inserted_258 && "Max registers used");
-			}
-			new_uop.updatePackageWait(DECODE_LATENCY);
-			statusInsert = this->decodeBuffer.push_back(new_uop);
-			if (DECODE_DEBUG){
-				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
-			}
-			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
-            */
 		}
 		// =====================
 		//Decode Branch
@@ -1855,233 +1804,10 @@ void processor_t::dispatch(){
                             dispatched = true;
                             rob_line->stage = PROCESSOR_STAGE_EXECUTION;
                             uop->updatePackageWait(uop->latency);
+                            break;
                         }
                     }
                 }
-
-                /*
-				switch (rob_line->uop.uop_operation)
-				{
-				// NOP operation
-				case INSTRUCTION_OPERATION_NOP:
-				// integer alu// add/sub/logical
-				case INSTRUCTION_OPERATION_INT_ALU:
-				// branch op. como fazer, branch solved on fetch
-				case INSTRUCTION_OPERATION_BRANCH:
-				// op not defined
-				case INSTRUCTION_OPERATION_OTHER:
-					if (fu_int_alu < INTEGER_ALU)
-					{
-						for (uint8_t k = 0; k < INTEGER_ALU; k++)
-						{
-							if (this->fu_int_alu[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_int_alu[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_INT_ALU;
-								fu_int_alu++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_INTEGER_ALU);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				// Integer Multiplication
-				case INSTRUCTION_OPERATION_INT_MUL:
-					if (fu_int_mul < INTEGER_MUL)
-					{
-						for (uint8_t k = 0; k < INTEGER_MUL; k++)
-						{
-							if (this->fu_int_mul[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_int_mul[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_INT_MUL;
-								fu_int_mul++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_INTEGER_MUL);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				// Integer division
-				case INSTRUCTION_OPERATION_INT_DIV:
-					if (fu_int_div < INTEGER_DIV)
-					{
-						for (uint8_t k = 0; k < INTEGER_DIV; k++)
-						{
-							if (this->fu_int_div[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_int_div[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_INT_DIV;
-								fu_int_div++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_INTEGER_DIV);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				// Floating point ALU operation
-				case INSTRUCTION_OPERATION_FP_ALU:
-					if (fu_fp_alu < FP_ALU)
-					{
-						for (uint8_t k = 0; k < FP_ALU; k++)
-						{
-							if (this->fu_fp_alu[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_fp_alu[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_FP_ALU;
-								fu_fp_alu++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_FP_ALU);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				// Floating Point Multiplication
-				case INSTRUCTION_OPERATION_FP_MUL:
-					if (fu_fp_mul < FP_MUL)
-					{
-						for (uint8_t k = 0; k < FP_MUL; k++)
-						{
-							if (this->fu_fp_mul[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_fp_mul[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_FP_MUL;
-								fu_fp_mul++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_FP_MUL);
-								break;
-							}
-						}
-					}
-					break;
-
-				// ====================================================
-				// Floating Point Division
-				case INSTRUCTION_OPERATION_FP_DIV:
-					if (fu_fp_div < FP_DIV)
-					{
-						for (uint8_t k = 0; k < FP_DIV; k++)
-						{
-							if (this->fu_fp_div[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_fp_div[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_FP_DIV;
-								fu_fp_div++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_FP_DIV);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				// Operation HIVE
-				case INSTRUCTION_OPERATION_HIVE_LOCK:
-                case INSTRUCTION_OPERATION_HIVE_UNLOCK:
-                case INSTRUCTION_OPERATION_HIVE_LOAD:
-                case INSTRUCTION_OPERATION_HIVE_STORE:
-                case INSTRUCTION_OPERATION_HIVE_INT_ALU:
-                case INSTRUCTION_OPERATION_HIVE_INT_MUL:
-                case INSTRUCTION_OPERATION_HIVE_INT_DIV:
-                case INSTRUCTION_OPERATION_HIVE_FP_ALU :
-                case INSTRUCTION_OPERATION_HIVE_FP_MUL :
-                case INSTRUCTION_OPERATION_HIVE_FP_DIV :
-					if (fu_mem_hive < HIVE_UNIT)
-					{
-						for (uint8_t k = 0; k < HIVE_UNIT; k++)
-						{
-							if (this->fu_mem_hive[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_mem_hive[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_MEM_HIVE;
-								fu_mem_hive++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_MEM_HIVE);
-								if (DEBUG) ORCS_PRINTF ("Processor dispatch(): HIVE instruction %lu dispatched!\n", rob_line->uop.uop_number)
-								break;
-							}
-						}
-					}
-					break;
-				case INSTRUCTION_OPERATION_VIMA_INT_ALU:
-                case INSTRUCTION_OPERATION_VIMA_INT_MUL:
-                case INSTRUCTION_OPERATION_VIMA_INT_DIV:
-                case INSTRUCTION_OPERATION_VIMA_FP_ALU :
-                case INSTRUCTION_OPERATION_VIMA_FP_MUL :
-                case INSTRUCTION_OPERATION_VIMA_FP_DIV :
-				case INSTRUCTION_OPERATION_VIMA_INT_MLA:
-				case INSTRUCTION_OPERATION_VIMA_FP_MLA:
-					if (fu_mem_vima < VIMA_UNIT)
-					{
-						for (uint8_t k = 0; k < VIMA_UNIT; k++)
-						{
-							if (this->fu_mem_vima[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_mem_vima[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_MEM_VIMA;
-								fu_mem_vima++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_MEM_VIMA);
-								if (VIMA_DEBUG) ORCS_PRINTF ("Processor dispatch(): VIMA instruction %lu dispatched!\n", rob_line->uop.uop_number)
-								break;
-							}
-						}
-					}
-					break;
-				case INSTRUCTION_OPERATION_MEM_LOAD:
-					if (fu_mem_load < LOAD_UNIT)
-					{
-						for (uint8_t k = 0; k < LOAD_UNIT; k++)
-						{
-							if (this->fu_mem_load[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_mem_load[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_MEM_LOAD;
-								fu_mem_load++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_MEM_LOAD);
-								break;
-							}
-						}
-					}
-					break;
-
-				// ====================================================
-				// Operation STORE
-				case INSTRUCTION_OPERATION_MEM_STORE:
-					if (fu_mem_store < STORE_UNIT)
-					{
-						for (uint8_t k = 0; k < STORE_UNIT; k++)
-						{
-							if (this->fu_mem_store[k] <= orcs_engine.get_global_cycle())
-							{
-								this->fu_mem_store[k] = orcs_engine.get_global_cycle() + WAIT_NEXT_MEM_STORE;
-								fu_mem_store++;
-								dispatched = true;
-								rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-								rob_line->uop.updatePackageWait(LATENCY_MEM_STORE);
-								break;
-							}
-						}
-					}
-					break;
-				// ====================================================
-				case INSTRUCTION_OPERATION_BARRIER:
-				case INSTRUCTION_OPERATION_HMC_ROA:
-				case INSTRUCTION_OPERATION_HMC_ROWA:
-				case INSTRUCTION_OPERATION_LAST:
-					ERROR_PRINTF("Invalid instruction LAST||BARRIER||HMC_ROA||HMC_ROWA being dispatched.\n");
-					break;
-				} //end switch
-                */
 
 				//remover os postos em execucao aqui
 				if (dispatched == true)
