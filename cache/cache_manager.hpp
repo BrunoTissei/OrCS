@@ -5,6 +5,7 @@ using namespace std;
 class cache_manager_t {
 
     private:
+        uint64_t i;
         uint64_t reads;
         uint64_t read_miss;
         uint64_t read_hit;
@@ -13,7 +14,7 @@ class cache_manager_t {
         uint64_t write_hit;
         uint64_t offset;
         uint64_t mshr_index;
-        uint64_t* op_count;
+        uint64_t** op_count;
         uint64_t* op_max;
 
         uint32_t sent_ram;
@@ -43,7 +44,7 @@ class cache_manager_t {
         void check_cache(uint32_t cache_size, uint32_t cache_level);
         void print_requests();
         bool isIn (memory_package_t* mob_line);
-        void installCacheLines(uint64_t instructionAddress, int32_t *cache_indexes, uint32_t latency_request, cacheId_t cache_type);
+        void installCacheLines(memory_package_t* request, int32_t *cache_indexes, uint32_t latency_request, cacheId_t cache_type);
         uint32_t searchAddress(uint64_t instructionAddress, cache_t *cache, uint32_t *latency_request, uint32_t *ttc);
         cache_status_t recursiveInstructionSearch(memory_package_t *mob_line, int32_t *cache_indexes, uint32_t latency_request, uint32_t ttc, uint32_t cache_level);
         cache_status_t recursiveDataSearch(memory_package_t *mob_line, int32_t *cache_indexes, uint32_t latency_request, uint32_t ttc, uint32_t cache_level, cacheId_t cache_type);
@@ -66,7 +67,7 @@ class cache_manager_t {
         void statistics(uint32_t core_id);
         void generateIndexArray(uint32_t processor_id, int32_t *cache_indexes);
         bool searchData(memory_package_t *mob_line);
-        bool available(memory_operation_t op);
+        bool available(uint32_t processor_id, memory_operation_t op);
         
         // Getters and setters
         INSTANTIATE_GET_SET_ADD(uint64_t, reads)

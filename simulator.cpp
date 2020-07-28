@@ -1,5 +1,4 @@
 #include "./simulator.hpp"
-#include <iostream>
 
 orcs_engine_t orcs_engine;
 
@@ -71,13 +70,13 @@ static uint32_t process_argv(int argc, char **argv) {
         ORCS_PRINTF("\n");
     }
 
-    orcs_engine.configuration = new configure_t;
+    orcs_engine.configuration = new configure_t();
     libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
     uint32_t NUMBER_OF_PROCESSORS = cfg_root["PROCESSOR"].getLength();
 
     utils_t::process_mem_usage(&orcs_engine.stat_vm_start, &orcs_engine.stat_rss_start);
     if(orcs_engine.use_pin == false) {
-        ORCS_PRINTF ("traces_informados = %u, NUMBER_OF_PROCESSORS = %u\n", traces_informados, NUMBER_OF_PROCESSORS)
+        // ORCS_PRINTF ("traces_informados = %u, NUMBER_OF_PROCESSORS = %u\n", traces_informados, NUMBER_OF_PROCESSORS)
         ERROR_ASSERT_PRINTF(traces_informados==NUMBER_OF_PROCESSORS,"Erro, Numero de traces informados diferente do numero de cores\n")
         if (orcs_engine.arg_trace_file_name.empty()) {
             ORCS_PRINTF("Trace file not defined.\n");
@@ -204,19 +203,15 @@ int main(int argc, char **argv) {
     //Cache Manager
     //==================
     orcs_engine.cacheManager->allocate(NUMBER_OF_PROCESSORS);
-    std::cout << "DONE CACHE" << std::endl;
-
     //==================
     //Memory Controller
     //==================
     orcs_engine.memory_controller->allocate();
-    std::cout << "DONE MEMORY" << std::endl;
 
     //==================
     //Instruction Set
     //==================
     orcs_engine.instruction_set->allocate();
-    std::cout << "DONE INSTRUCTION" << std::endl;
 
     for (uint32_t i = 0; i < NUMBER_OF_PROCESSORS; i++){
         //==================
@@ -238,7 +233,7 @@ int main(int argc, char **argv) {
         //==================
         //Branch Predictor
         //==================
-        orcs_engine.branchPredictor[i].allocate();
+        orcs_engine.branchPredictor[i].allocate (i);
     }
 
     if (orcs_engine.processor->get_HAS_HIVE()) orcs_engine.hive_controller->allocate();
@@ -330,21 +325,17 @@ int main(int argc, char **argv) {
 
     ORCS_PRINTF("Deleting Trace Reader\n")
     delete[] orcs_engine.trace_reader;
-    //delete orcs_engine.configuration;
-    ORCS_PRINTF("Deleting Processor\n")
-    delete[] orcs_engine.processor;
+    delete orcs_engine.configuration;
+    ORCS_PRINTF("Deleting Memory Controller\n")
+    delete orcs_engine.memory_controller;
     ORCS_PRINTF("Deleting Branch predictor\n")
     delete[] orcs_engine.branchPredictor;
     ORCS_PRINTF("Deleting Cache manager\n")
     delete orcs_engine.cacheManager;
-    if (orcs_engine.processor->get_HAS_HIVE()){
-        ORCS_PRINTF("Deleting HIVE Controller\n")
-        delete orcs_engine.hive_controller;
-    } 
-    if (orcs_engine.processor->get_HAS_VIMA()){
-        ORCS_PRINTF ("Deleting VIMA Controller\n")
-        delete orcs_engine.vima_controller;
-    }
-    ORCS_PRINTF("Deleting Memory Controller\n")
-    delete orcs_engine.memory_controller;
+    ORCS_PRINTF("Deleting HIVE Controller\n")
+    delete orcs_engine.hive_controller;
+    ORCS_PRINTF ("Deleting VIMA Controller\n")
+    delete orcs_engine.vima_controller;
+    ORCS_PRINTF("Deleting Processor\n")
+    delete[] orcs_engine.processor;
 }

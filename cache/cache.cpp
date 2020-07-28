@@ -18,13 +18,18 @@ cache_t::cache_t() {
     this->cache_write = 0;
     this->cache_writeback = 0;
     this->change_line = 0;
+
+	this->LINE_SIZE = 0;
+    this->PREFETCHER_ACTIVE = 0;
+    this->INSTRUCTION_LEVELS = 0;
+    this->DATA_LEVELS = 0;
+    this->POINTER_LEVELS = 0;
+    this->CACHE_MANAGER_DEBUG = 0;
+    this->WAIT_CYCLE = 0;
 }
 
 cache_t::~cache_t(){
 	if (orcs_engine.get_global_cycle() == 0) return;
-	for (size_t i = 0; i < this->n_sets; i++) {
-		delete[] this->sets[i].lines;
-    }
 	delete[] sets;
 	//ORCS_PRINTF ("cycle: %lu\n", orcs_engine.get_global_cycle())
 }
@@ -44,7 +49,8 @@ void cache_t::allocate(uint32_t NUMBER_OF_PROCESSORS, uint32_t INSTRUCTION_LEVEL
 
 	set_INSTRUCTION_LEVELS (INSTRUCTION_LEVELS);
 	set_DATA_LEVELS (DATA_LEVELS);
-	POINTER_LEVELS = ((INSTRUCTION_LEVELS > DATA_LEVELS) ? INSTRUCTION_LEVELS : DATA_LEVELS);
+	// POINTER_LEVELS = ((INSTRUCTION_LEVELS > DATA_LEVELS) ? INSTRUCTION_LEVELS : DATA_LEVELS);
+	POINTER_LEVELS = 3;
 
 	uint32_t line_number = this->size/this->LINE_SIZE;
 	uint32_t total_sets = line_number/associativity;
@@ -69,18 +75,19 @@ void cache_t::allocate(uint32_t NUMBER_OF_PROCESSORS, uint32_t INSTRUCTION_LEVEL
         this->tag_bits_mask |= 1 << i;
     }
 	
-	this->sets = new cacheSet_t[this->n_sets];
+	this->sets = new cacheSet_t[this->n_sets]();
     for (size_t i = 0; i < this->n_sets; i++) {
-		this->sets[i].lines = new line_t[this->associativity];
+		this->sets[i].lines = new line_t[this->associativity]();
 		this->sets[i].n_lines = this->associativity;
         for (uint32_t j = 0; j < this->sets[i].n_lines; j++) {
             this->sets[i].lines[j].allocate(POINTER_LEVELS);
+			this->sets[i].lines[j].clean_line();
             for (uint32_t k = 0; k < NUMBER_OF_PROCESSORS; k++) {
                 for (uint32_t l = 0; l < POINTER_LEVELS; l++) {
                     this->sets[i].lines[j].line_ptr_caches[k][l] = NULL;
                 }
 			}
-			this->sets[i].lines[j].clean_line();
+			//this->sets[i].lines[j].print_line();
         }
     }
     this->set_cache_access(0);
@@ -90,31 +97,32 @@ void cache_t::allocate(uint32_t NUMBER_OF_PROCESSORS, uint32_t INSTRUCTION_LEVEL
     this->set_cache_read(0);
     this->set_cache_write(0);
     this->set_cache_writeback(0);
+	this->set_change_line(0);
 }
 
 // Return address index in cache
-inline void cache_t::tagIdxSetCalculation(uint64_t address, uint32_t *idx, uint64_t *tag) {
+inline void cache_t::tagIdxSetCalculation(uint64_t address, uint64_t *idx, uint64_t *tag) {
 	uint32_t get_bits = (this->n_sets) - 1;
 	*tag = (address >> this->offset);
 	*idx = *tag & get_bits;
-	*tag >>= utils_t::get_power_of_two(this->n_sets);
-	//printf("tag: %lu idx: %lu\n", get_tag(address), get_index(address));
+	// *tag >>= utils_t::get_power_of_two(this->n_sets);
+	// printf("tag: %lu idx: %u address: %lu\n", *tag, *idx, address);
 }
 
-void cache_t::printTagIdx (uint64_t address){
-	uint32_t get_bits = (this->n_sets) - 1;
-	uint64_t tag = (address >> this->offset);
-	uint32_t idx = tag & get_bits;
-	tag >>= utils_t::get_power_of_two(this->n_sets);
-	printf("tag: %lu idx: %u\n", tag, idx);
-}
+// void cache_t::printTagIdx (uint64_t address){
+// 	uint32_t get_bits = (this->n_sets) - 1;
+// 	uint64_t tag = (address >> this->offset);
+// 	uint32_t idx = tag & get_bits;
+// 	// tag >>= utils_t::get_power_of_two(this->n_sets);
+// }
 
 // Reads a cache, updates cycles and return HIT or MISS status
-uint32_t cache_t::read(uint64_t address,uint32_t &ttc){
-    uint32_t idx;
+uint32_t cache_t::read(uint64_t address, uint32_t &ttc){
+    uint64_t idx;
     uint64_t tag;
 	this->tagIdxSetCalculation(address, &idx, &tag);
 	for (size_t i = 0; i < this->sets->n_lines; i++) {
+		//printf("tag: %u\n", this->sets[idx].lines[i].dirty);
 		if(this->sets[idx].lines[i].tag == tag) {
 			// Se ready Cycle for menor que o ciclo atual, a latencia é apenas da leitura, sendo um hit.
 			if (this->sets[idx].lines[i].ready_at <= orcs_engine.get_global_cycle()){
@@ -165,39 +173,40 @@ inline uint32_t cache_t::searchLru(cacheSet_t *set) {
 }
 
 // Copy data information to lower cache levels when data addresses are valid
-void cache_t::copyLevels(line_t *line, uint32_t idxa, uint32_t idxb) {
-	if (line->line_ptr_caches[0][idxa]->dirty == 1) {
-		line->line_ptr_caches[0][idxa]->line_ptr_caches[0][idxb]->dirty = line->line_ptr_caches[0][idxa]->dirty;
-		line->line_ptr_caches[0][idxa]->line_ptr_caches[0][idxb]->lru = orcs_engine.get_global_cycle();
-		line->line_ptr_caches[0][idxa]->line_ptr_caches[0][idxb]->ready_at = line->line_ptr_caches[0][idxa]->ready_at;
+void cache_t::copyLevels(line_t *line, uint32_t idxa, uint32_t idxb, uint32_t processor_id) {
+	if (line->line_ptr_caches[processor_id][idxa]->dirty == 1) {
+		line->line_ptr_caches[processor_id][idxa]->line_ptr_caches[processor_id][idxb]->dirty = line->line_ptr_caches[processor_id][idxa]->dirty;
+		line->line_ptr_caches[processor_id][idxa]->line_ptr_caches[processor_id][idxb]->lru = orcs_engine.get_global_cycle();
+		line->line_ptr_caches[processor_id][idxa]->line_ptr_caches[processor_id][idxb]->ready_at = line->line_ptr_caches[processor_id][idxa]->ready_at;
 	}
-	line->line_ptr_caches[0][idxa]->clean_line();
+	line->line_ptr_caches[processor_id][idxa]->clean_line();
 }
 
 // Copy data information to lower cache levels when data addresses are invalid
-void cache_t::copyNextLevels(line_t *line, uint32_t idx) {
-	line->line_ptr_caches[0][idx]->dirty = line->dirty;
-	line->line_ptr_caches[0][idx]->lru = orcs_engine.get_global_cycle();
-	line->line_ptr_caches[0][idx]->ready_at = line->ready_at;
+void cache_t::copyNextLevels(line_t *line, uint32_t idx, uint32_t processor_id) {
+	line->line_ptr_caches[processor_id][idx]->dirty = line->dirty;
+	line->line_ptr_caches[processor_id][idx]->lru = orcs_engine.get_global_cycle();
+	line->line_ptr_caches[processor_id][idx]->ready_at = line->ready_at;
 }
 
 // Writebacks an address from a specific cache to its next lower leveL
-inline void cache_t::writeBack(line_t *line) {
+inline void cache_t::writeBack(line_t *line, uint32_t processor_id) {
+	// printf("writeback in processor %d\n", processor_id);
     for (uint32_t i = this->level + 1; i < DATA_LEVELS - 1; i++) {
-        ERROR_ASSERT_PRINTF(line->line_ptr_caches[0][i] != NULL, "Error, no line reference in next levels.")
+        ERROR_ASSERT_PRINTF(line->line_ptr_caches[processor_id][i] != NULL, "Error, no line reference in next levels.")
     }
 	// L1 writeBack issues
 	if (this->level == 0) {
 		for (uint32_t i = 1; i < DATA_LEVELS; i++) {
-			this->copyNextLevels(line, i);
-			line->line_ptr_caches[0][i]->line_ptr_caches[0][this->level] = NULL;//Pointer to Lower Level
+			this->copyNextLevels(line, i, processor_id);
+			line->line_ptr_caches[processor_id][i]->line_ptr_caches[processor_id][this->level] = NULL;//Pointer to Lower Level
 		}
 		line->clean_line();
 	// LLC writeBack issues
     } else if (this->level == DATA_LEVELS - 1) {
 		for (uint32_t i = 0; i < DATA_LEVELS - 1; i++) {
-			if (line->line_ptr_caches[0][i] != NULL) {
-				line->line_ptr_caches[0][i]->clean_line();
+			if (line->line_ptr_caches[processor_id][i] != NULL) {
+				line->line_ptr_caches[processor_id][i]->clean_line();
 			}
 		}
 	// Intermediate cache levels issues
@@ -211,15 +220,15 @@ inline void cache_t::writeBack(line_t *line) {
 		// 		copyLevels(line, i, i + 1);
 		// 	}
 		// }
-        if (line->line_ptr_caches[0][i] != NULL) {
-			copyLevels(line, i, i + 2);
+        if (line->line_ptr_caches[processor_id][i] != NULL) {
+			copyLevels(line, i, i + 2, processor_id);
 		} else {
-			copyNextLevels(line, i + 2);
+			copyNextLevels(line, i + 2, processor_id);
 
 		}
 		for (uint32_t i = this->level + 1; i < DATA_LEVELS; i++) {
 			for (uint32_t j = 0; j <= this->level; j++) {
-				line->line_ptr_caches[0][i]->line_ptr_caches[0][j] = NULL;
+				line->line_ptr_caches[processor_id][i]->line_ptr_caches[processor_id][j] = NULL;
 			}
 		}
 		line->clean_line();
@@ -227,10 +236,11 @@ inline void cache_t::writeBack(line_t *line) {
 }
 
 // Searches for a cache line to write data
-line_t* cache_t::installLine(uint64_t address, uint32_t latency, uint32_t &idx, uint32_t &line) {
+line_t* cache_t::installLine(memory_package_t* request, uint32_t latency, uint64_t &idx, uint64_t &line) {
+	// printf("installLine %lu in processor %u\n", request->memory_address, request->processor_id);
 	line = POSITION_FAIL;
     uint64_t tag;
-    this->tagIdxSetCalculation(address, &idx, &tag);
+    this->tagIdxSetCalculation(request->memory_address, &idx, &tag);
 	for (size_t i = 0; i < this->sets[idx].n_lines; i++) {
 		if (this->sets[idx].lines[i].valid == 0) {
 			line = i;
@@ -242,7 +252,7 @@ line_t* cache_t::installLine(uint64_t address, uint32_t latency, uint32_t &idx, 
 		line = this->searchLru(&this->sets[idx]);
 		this->add_change_line();
 		if (this->sets[idx].lines[line].dirty == 1) {
-			this->writeBack(&this->sets[idx].lines[line]);
+			this->writeBack(&this->sets[idx].lines[line], request->processor_id);
 			this->add_cache_writeback();
 		}
 	}
@@ -257,10 +267,10 @@ line_t* cache_t::installLine(uint64_t address, uint32_t latency, uint32_t &idx, 
 }
 
 // Selects a cache line to install an address and points this memory address with the other cache pointers
-void cache_t::returnLine(uint64_t address, cache_t *cache) {
-	uint32_t idx, idx_padding, line_padding;
-	uint64_t tag;
-    this->tagIdxSetCalculation(address, &idx, &tag);
+void cache_t::returnLine(memory_package_t* request, cache_t *cache) {
+	// printf("returnLine %lu in processor %u\n", request->memory_address, request->processor_id);
+	uint64_t tag, idx, idx_padding, line_padding;
+    this->tagIdxSetCalculation(request->memory_address, &idx, &tag);
 	int32_t line = POSITION_FAIL;
 	// Selects a line in this cache
 	for (size_t i = 0; i < this->sets->n_lines; i++) {
@@ -273,27 +283,28 @@ void cache_t::returnLine(uint64_t address, cache_t *cache) {
     ERROR_ASSERT_PRINTF(line != POSITION_FAIL, "Error, line não encontrada para retorno")
 	if (this->level > 0) {
 		line_t *line_return = NULL;
-		line_return = cache->installLine(address, this->latency, idx_padding, line_padding);
+		line_return = cache->installLine(request, this->latency, idx_padding, line_padding);
 
-		this->sets[idx].lines[line].line_ptr_caches[0][cache->level] = line_return;
+		this->sets[idx].lines[line].line_ptr_caches[request->processor_id][cache->level] = line_return;
 		for (uint32_t i = this->level + 1; i < POINTER_LEVELS; i++) {
-			line_return->line_ptr_caches[0][i] = this->sets[idx].lines[line].line_ptr_caches[0][i];
+			line_return->line_ptr_caches[request->processor_id][i] = this->sets[idx].lines[line].line_ptr_caches[request->processor_id][i];
 		}
-		line_return->line_ptr_caches[0][this->level] = &this->sets[idx].lines[line];
+		line_return->line_ptr_caches[request->processor_id][this->level] = &this->sets[idx].lines[line];
 		// Copy information
-		line_return->dirty = line_return->line_ptr_caches[0][this->level]->dirty;
-		line_return->lru = line_return->line_ptr_caches[0][this->level]->lru;
-		line_return->prefetched = line_return->line_ptr_caches[0][this->level]->prefetched;
+		line_return->dirty = line_return->line_ptr_caches[request->processor_id][this->level]->dirty;
+		line_return->lru = line_return->line_ptr_caches[request->processor_id][this->level]->lru;
+		line_return->prefetched = line_return->line_ptr_caches[request->processor_id][this->level]->prefetched;
 		line_return->ready_at = orcs_engine.get_global_cycle();
 	}
 }
 
 
 // write address
-uint32_t cache_t::write(uint64_t address){
-    uint32_t idx;
+uint32_t cache_t::write(memory_package_t* request){
+	// printf("write %lu in processor %u\n", request->memory_address, request->processor_id);
+    uint64_t idx;
     uint64_t tag;
-    this->tagIdxSetCalculation(address, &idx, &tag);
+    this->tagIdxSetCalculation(request->memory_address, &idx, &tag);
 	int32_t line = POSITION_FAIL;
 	this->add_cache_write();
     for (size_t i = 0; i < this->sets->n_lines; i++) {
@@ -306,7 +317,7 @@ uint32_t cache_t::write(uint64_t address){
         line = this->searchLru(&this->sets[idx]);
         this->add_change_line();
         if (this->sets[idx].lines[line].dirty == 1) {
-            this->writeBack(&this->sets[idx].lines[line]);
+            this->writeBack(&this->sets[idx].lines[line], request->processor_id);
             this->add_cache_writeback();
         }
     }

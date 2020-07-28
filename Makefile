@@ -6,7 +6,7 @@ CPPFLAGS = $(FLAGS)
 BIN_NAME = orcs
 RM = rm -f
 
-FLAGS =   -ggdb3 -g -Wall -Wextra -Werror -std=c++0x -lefence -O3 -pedantic
+FLAGS =   -ggdb3 -g -Wall -Wextra -Werror -std=c++0x -lefence -O3 -pedantic -fsanitize=leak -Wno-stringop-truncation
 LDFLAGS = -ggdb3
 ########################################################################
 ##FOLDERS
@@ -46,8 +46,6 @@ SRC_BRANCH_PREDICTOR =	$(FD_BRANCH_PREDICTOR)/branch_predictor.cpp\
 						
 SRC_CACHE = $(FD_CACHE)/cache.cpp\
 			$(FD_CACHE)/cache_manager.cpp
-
-SRC_DIRECTORY = $(FD_DIRECTORY)/directory.cpp
 
 SRC_OTHER = $(FD_OTHER)/utils.cpp\
 			$(FD_OTHER)/enumerations.cpp

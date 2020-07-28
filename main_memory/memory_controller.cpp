@@ -5,9 +5,50 @@ memory_controller_t::memory_controller_t(){
     this->requests_made = 0; //Data Requests made
     this->operations_executed = 0; // number of operations executed
     this->requests_llc = 0; //Data Requests made to LLC
+    this->requests_hive = 0;
+    this->requests_vima = 0;
     this->requests_prefetcher = 0; //Data Requests made by prefetcher
     this->row_buffer_miss = 0; //Counter row buffer misses
     this->row_buffer_hit = 0;
+
+    this->channel_bits_mask = 0;
+    this->rank_bits_mask = 0;
+    this->bank_bits_mask = 0;
+    this->row_bits_mask = 0;
+    this->colrow_bits_mask = 0;
+    this->colbyte_bits_mask = 0;
+    this->not_column_bits_mask = 0;
+        
+    // Shifts bits
+    this->channel_bits_shift = 0;
+    this->colbyte_bits_shift = 0;
+    this->colrow_bits_shift = 0;
+    this->bank_bits_shift = 0;
+    this->row_bits_shift = 0;
+    this->controller_bits_shift = 0;
+        
+    this->CHANNEL = 0;
+    this->WAIT_CYCLE = 0;
+    this->LINE_SIZE = 0;
+    this->DEBUG = 0;
+
+    this->CORE_TO_BUS_CLOCK_RATIO = 0.0;
+    this->TIMING_AL = 0;     // Added Latency for column accesses
+    this->TIMING_CAS = 0;    // Column Access Strobe (CL) latency
+    this->TIMING_CCD = 0;    // Column to Column Delay
+    this->TIMING_CWD = 0;    // Column Write Delay (CWL) or simply WL
+    this->TIMING_FAW = 0;   // Four (row) Activation Window
+    this->TIMING_RAS = 0;   // Row Access Strobe
+    this->TIMING_RC = 0;    // Row Cycle
+    this->TIMING_RCD = 0;    // Row to Column comand Delay
+    this->TIMING_RP = 0;     // Row Precharge
+    this->TIMING_RRD = 0;    // Row activation to Row activation Delay
+    this->TIMING_RTP = 0;    // Read To Precharge
+    this->TIMING_WR = 0;    // Write Recovery time
+    this->TIMING_WTR = 0;
+
+    this->channels = NULL;
+    this->i = 0;
 }
 // ============================================================================
 memory_controller_t::~memory_controller_t(){
@@ -23,6 +64,8 @@ void memory_controller_t::allocate(){
     libconfig::Setting &cfg_processor = cfg_root["PROCESSOR"][0];
     
     set_DEBUG (cfg_processor["DEBUG"]);
+    set_BANK (cfg_memory_ctrl["BANK"]);
+    set_BANK_ROW_BUFFER_SIZE (cfg_memory_ctrl["BANK_ROW_BUFFER_SIZE"]);
     set_CHANNEL (cfg_memory_ctrl["CHANNEL"]);
     set_LINE_SIZE (cfg_memory_ctrl["LINE_SIZE"]);
     set_WAIT_CYCLE (cfg_memory_ctrl["WAIT_CYCLE"]);
@@ -42,8 +85,9 @@ void memory_controller_t::allocate(){
     set_TIMING_WR (cfg_memory_ctrl["TIMING_WR"]);    // Write Recovery time
     set_TIMING_WTR (cfg_memory_ctrl["TIMING_WTR"]);
     
-    this->channels = new memory_channel_t[CHANNEL];
-    for (size_t i = 0; i < CHANNEL; i++){
+    this->channels = new memory_channel_t[CHANNEL]();
+    for (i = 0; i < this->CHANNEL; i++) this->channels[i].allocate();
+    for (i = 0; i < CHANNEL; i++){
         channels[i].set_TIMING_AL (ceil (this->TIMING_AL * this->CORE_TO_BUS_CLOCK_RATIO));
         channels[i].set_TIMING_CAS (ceil (this->TIMING_CAS * this->CORE_TO_BUS_CLOCK_RATIO));
         channels[i].set_TIMING_CCD (ceil (this->TIMING_CCD * this->CORE_TO_BUS_CLOCK_RATIO));
@@ -71,6 +115,7 @@ void memory_controller_t::statistics(){
 		output = fopen(orcs_engine.output_file_name,"a+");
     }
 	if (output != NULL){
+        uint32_t total_rb_hits = 0, total_rb_misses = 0;
         utils_t::largestSeparator(output);
         fprintf(output,"#Memory Controller\n");
         utils_t::largestSeparator(output);
@@ -78,35 +123,75 @@ void memory_controller_t::statistics(){
         fprintf(output,"Requests_from_Prefetcher:   %lu\n",this->get_requests_prefetcher());
         fprintf(output,"Requests_from_LLC:          %lu\n",this->get_requests_llc());
         fprintf(output,"Requests_from_HIVE:         %lu\n",this->get_requests_hive());
-        fprintf(output,"Requests from VIMA:         %lu\n",this->get_requests_vima());
-        for (uint32_t i = 0; i < CHANNEL; i++){
-            fprintf(output,"Row_Buffer_Hit, Channel %u:  %lu\n",i,this->channels[i].get_stat_row_buffer_hit());
-            fprintf(output,"Row_Buffer_Miss, Channel %u: %lu\n",i,this->channels[i].get_stat_row_buffer_miss());
+        fprintf(output,"Requests_from_VIMA:         %lu\n",this->get_requests_vima());
+        for (i = 0; i < CHANNEL; i++){
+            fprintf(output,"Row_Buffer_Hit, Channel %lu:  %lu\n",i,this->channels[i].get_stat_row_buffer_hit());
+            fprintf(output,"Row_Buffer_Miss, Channel %lu: %lu\n",i,this->channels[i].get_stat_row_buffer_miss());
+            total_rb_hits += this->channels[i].get_stat_row_buffer_hit();
+            total_rb_misses += this->channels[i].get_stat_row_buffer_miss();
         }
+        fprintf(output,"Requests_Made_RB_Hits:       %u\n",total_rb_hits);
+        fprintf(output,"Requests_Made_RB_Misses:     %u\n",total_rb_misses);
+        fprintf(output,"Requests_RB_Misses_Ratio:    %f\n", (float) total_rb_misses/this->get_requests_made());
         utils_t::largestSeparator(output);
         if(close) fclose(output);
     }
 }
 // ============================================================================
 void memory_controller_t::clock(){
-    for (uint32_t i = 0; i < this->CHANNEL; i++) this->channels[i].clock();
+    for (i = 0; i < this->CHANNEL; i++) this->channels[i].clock();
 }
 // ============================================================================
-void memory_controller_t::set_masks(){
-        
+void memory_controller_t::set_masks(){ 
     ERROR_ASSERT_PRINTF(CHANNEL > 1 && utils_t::check_if_power_of_two(CHANNEL),"Wrong number of memory_channels (%u).\n",CHANNEL);
-    uint64_t i;
-    // =======================================================
-    // Setting to zero
-    // =======================================================
-    this->channel_bits_shift = 0;
-    this->channel_bits_mask = 0;
-    // =======================================================
-    this->channel_bits_shift = utils_t::get_power_of_two(LINE_SIZE);
     
+    this->channel_bits_shift=0;
+    this->colbyte_bits_shift=0;
+    this->colrow_bits_shift=0;
+    
+    this->bank_bits_shift=0;
+    this->row_bits_shift=0;
+    this->colbyte_bits_shift = 0;
+
+    this->channel_bits_mask = 0;
+    this->bank_bits_mask = 0;
+    this->rank_bits_mask = 0;
+    this->row_bits_mask = 0;
+    this->colrow_bits_mask = 0;
+    this->colbyte_bits_mask = 0;
+    // =======================================================
+    this->controller_bits_shift = 0;
+    this->colbyte_bits_shift = 0;
+    this->colrow_bits_shift = utils_t::get_power_of_two(this->LINE_SIZE);
+    this->channel_bits_shift = utils_t::get_power_of_two(this->BANK_ROW_BUFFER_SIZE);
+    this->bank_bits_shift = this->channel_bits_shift + utils_t::get_power_of_two(this->CHANNEL);
+    this->row_bits_shift = this->bank_bits_shift + utils_t::get_power_of_two(this->BANK);
+    
+    /// COLBYTE MASK
+    for (i = 0; i < utils_t::get_power_of_two(this->LINE_SIZE); i++) {
+        this->colbyte_bits_mask |= 1 << (i + this->colbyte_bits_shift);
+    }
+
+    /// COLROW MASK
+    for (i = 0; i < utils_t::get_power_of_two(this->BANK_ROW_BUFFER_SIZE / this->LINE_SIZE); i++) {
+        this->colrow_bits_mask |= 1 << (i + this->colrow_bits_shift);
+    }
+
+    this->not_column_bits_mask = ~(colbyte_bits_mask | colrow_bits_mask);
+
     /// CHANNEL MASK
-    for (i = 0; i < utils_t::get_power_of_two(CHANNEL); i++) {
-        this->channel_bits_mask |= 1 << (i + this->channel_bits_shift);
+    for (i = 0; i < utils_t::get_power_of_two(this->CHANNEL); i++) {
+        this->channel_bits_mask |= 1 << (i + channel_bits_shift);
+    }
+
+    /// BANK MASK
+    for (i = 0; i < utils_t::get_power_of_two(this->BANK); i++) {
+        this->bank_bits_mask |= 1 << (i + bank_bits_shift);
+    }
+
+    /// ROW MASK
+    for (i = row_bits_shift; i < utils_t::get_power_of_two((uint64_t)INT64_MAX+1); i++) {
+        this->row_bits_mask |= 1 << i;
     }
 }
 //=====================================================================

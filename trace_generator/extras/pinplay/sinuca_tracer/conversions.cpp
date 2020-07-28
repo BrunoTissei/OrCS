@@ -5,6 +5,7 @@
 #include <string>
 #include <stdio.h>
 #include <vector>
+#include <algorithm>
 #include "tracer_log_procedures.hpp"
 #include "../../../../defines.hpp"
 #include "../../../../utils/enumerations.hpp"
@@ -39,24 +40,20 @@ unsigned int ascii_to_hex(const char *src,
     return len/2;
 }
 
-std::string to_string(xed_uint8_t x) {
+std::string to_string(xed_uint_t x) {
     std::string res;
     while (x) {
         res.push_back((x % 10) + '0');
         x /= 10;
     }
+    std::reverse(res.begin(), res.end());
     return res;
 }
 
 std::string gen_icode(xed_decoded_inst_t *xedd) {
-    #define TBUFSZ 90
-    char tbuf[TBUFSZ];
-
     const xed_inst_t* xi = xed_decoded_inst_inst(xedd);
     unsigned int noperands = xed_inst_noperands(xi);
 
-
-    tbuf[0] = 0;
     std::string result = "";
     for (unsigned int i = 0; i < noperands; ++i) {
         const xed_operand_t* op = xed_inst_operand(xi, i);
@@ -68,65 +65,27 @@ std::string gen_icode(xed_decoded_inst_t *xedd) {
             case XED_OPERAND_AGEN:
                 break;
 
+            // Memory
             case XED_OPERAND_MEM0:
             case XED_OPERAND_MEM1: {
-                // we print memops in a different function
-                xed_strcpy(tbuf, "(see below)");
                 ops += "M";
                 break;
             }
 
-            // pointer and rel
-            case XED_OPERAND_PTR:   
+            // Pointer and rel
+            case XED_OPERAND_PTR:
             case XED_OPERAND_RELBR: {
-                xed_uint_t disp_bits =
-                    xed_decoded_inst_get_branch_displacement_width(xedd);
-                if (disp_bits) {
-                    xed_int32_t disp =
-                        xed_decoded_inst_get_branch_displacement(xedd);
-                    snprintf(tbuf, TBUFSZ,
-                            "BRANCH_DISPLACEMENT_BYTES= %d %08x",
-                            disp_bits,disp);
-                }
-
                 ops += "Rel";
                 break;
             }
 
-            // immediates
+            // Immediates
             case XED_OPERAND_IMM0: {
-                char buf[64];
-                const unsigned int no_leading_zeros=0;
-                xed_uint_t ibits;
-                const xed_bool_t lowercase = 1;
-                ibits = xed_decoded_inst_get_immediate_width_bits(xedd);
-                if (xed_decoded_inst_get_immediate_is_signed(xedd)) {
-                    xed_uint_t rbits = ibits?ibits:8;
-                    xed_int32_t x = xed_decoded_inst_get_signed_immediate(xedd);
-                    xed_uint64_t y = XED_STATIC_CAST(xed_uint64_t,
-                            xed_sign_extend_arbitrary_to_64(
-                                (xed_uint64_t)x,
-                                ibits));
-                    xed_itoa_hex_ul(buf, y, rbits, no_leading_zeros, 64, lowercase);
-                }
-                else {
-                    xed_uint64_t x =xed_decoded_inst_get_unsigned_immediate(xedd);
-                    xed_uint_t rbits = ibits?ibits:16;
-                    xed_itoa_hex_ul(buf, x, rbits, no_leading_zeros, 64, lowercase);
-                }
                 ops += "I";
-                snprintf(tbuf,TBUFSZ,
-                        "0x%s(%db)",buf,ibits);
                 break;
             }
-            case XED_OPERAND_IMM1: { // 2nd immediate is always 1 byte.
-                xed_uint8_t x = xed_decoded_inst_get_second_immediate(xedd);
-                snprintf(tbuf,TBUFSZ,
-                        "0x%02x",(int)x);
 
-                ops += "I";
-                break;
-            }
+            // Registers
             case XED_OPERAND_REG0:
             case XED_OPERAND_REG1:
             case XED_OPERAND_REG2:
@@ -138,18 +97,11 @@ std::string gen_icode(xed_decoded_inst_t *xedd) {
             case XED_OPERAND_REG8:
             case XED_OPERAND_BASE0:
             case XED_OPERAND_BASE1: {
-                xed_reg_enum_t r = xed_decoded_inst_get_reg(xedd, op_name);
-                snprintf(tbuf,TBUFSZ,
-                        "%s=%s", 
-                        xed_operand_enum_t2str(op_name),
-                        xed_reg_enum_t2str(r));
                 ops += "R";
                 break;
             }
-            default: 
-                printf("need to add support for printing operand: %s",
-                        xed_operand_enum_t2str(op_name));
-                assert(0);      
+            default:
+                assert(0);
         }
 
         auto vis = xed_operand_operand_visibility(op);
@@ -748,7 +700,7 @@ std::vector<opcode_package_t>* vgather_vscatter_to_static(const INS& ins) {
     //std::cerr << "Addr: " << INS_Address(ins) << "    Size: " << INS_Size(ins) << std::endl;
 
     std::vector<opcode_package_t> *ops = new std::vector<opcode_package_t>;
-   
+
    if(INS_IsVgather(ins)) {
         int32_t numAccesses, accessSize, indexSize;
         GetNumberAndSizeOfMemAccesses(ins, &numAccesses, &accessSize, &indexSize);
@@ -820,7 +772,7 @@ std::vector<opcode_package_t>* vgather_vscatter_to_static(const INS& ins) {
             // -------------------------------------------------------------------
             ops->push_back(op);
         }
-       
+
 
 
    } else if (INS_IsVscatter(ins)) {

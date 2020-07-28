@@ -25,32 +25,34 @@ piecewise_t::~piecewise_t() {
     this->GHR = NULL;
 }
 
-void piecewise_t::allocate() {
+void piecewise_t::allocate (uint32_t processor_id) {
     libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
     libconfig::Setting &cfg_branch_pred = cfg_root["PROCESSOR"][0];
     set_N(cfg_branch_pred["N"]);
     set_M(cfg_branch_pred["M"]);
     set_H(cfg_branch_pred["H"]);
 
+    this->processor_id = processor_id;
+
     THETA = ((2.14*(H)) + 20.58);
-    this->W = new int8_t**[N];
+    this->W = new int8_t**[N]();
     for (size_t i = 0; i < N; i++) {
-        this->W[i] = new int8_t*[M];
+        this->W[i] = new int8_t*[M]();
         for (size_t j = 0; j < M; j++) {
-            this->W[i][j] = new int8_t[H+1];
+            this->W[i][j] = new int8_t[H+1]();
             std::memset(&this->W[i][j][0],0,((H+1)*sizeof(int8_t)));
         }
     }
-    this->GA = new uint64_t[M];
-    this->GHR = new uint8_t[H];
+    this->GA = new uint64_t[M]();
+    this->GHR = new uint8_t[H]();
     std::memset(&this->GA[0],0,(M*sizeof(uint64_t)));
     std::memset(&this->GHR[0],0,(H*sizeof(uint8_t)));
     this->saida = 0;
 }
 
 taken_t piecewise_t::predict(uint64_t address) {
-    uint32_t indexA = address%N;
-    uint32_t indexB = address%M;
+    uint64_t indexA = address%N;
+    uint64_t indexB = address%M;
     this->saida = this->W[indexA][indexB][0];
     for (size_t i = 0; i < H; i++) {
      (this->GHR[i]==TAKEN)?this->saida += this->W[indexA][this->GA[i]][i]
@@ -60,8 +62,8 @@ taken_t piecewise_t::predict(uint64_t address) {
 }
 
 void piecewise_t::train(uint64_t address,taken_t predict, taken_t correct) {
-    uint32_t indexA = address%N;
-    uint32_t indexB = address%M;
+    uint64_t indexA = address%N;
+    uint64_t indexB = address%M;
 
     if((abs(this->saida)<THETA)||(predict != correct)) {
         if(correct==TAKEN) {

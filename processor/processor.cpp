@@ -3,15 +3,215 @@
 // =====================================================================
 processor_t::processor_t()
 {
+	this->stall_full_FetchBuffer = 0;
+    this->stall_wrong_branch = 0;
+	//=============
+	//Statistics Decode
+	//=============
+    this->stall_full_DecodeBuffer = 0;
+	//=============
+	//Statistics Rename
+	//=============
+	this->registerWrite = 0;
+	this->stall_full_MOB_Read = 0;
+	this->stall_full_MOB_Write = 0;
+	this->stall_full_ROB = 0;
+	//=============
+	//Statistics Dispatch
+	//=============
+	this->stall_empty_RS = 0;
+	//=============
+	//Statistics Execute
+	//=============
+	this->stat_disambiguation_read_false_positive = 0;
+	this->stat_disambiguation_write_false_positive = 0;
+	this->stat_address_to_address = 0;
+	this->times_reach_parallel_requests_read = 0;
+	this->times_reach_parallel_requests_write = 0;
+	this->instruction_per_cycle = 0;
+	this->ended_cycle = 0;
+	this->mem_req_wait_cycles = 0;
+	this->core_ram_request_wait_cycles = 0;
+	this->core_ram_requests = 0;
+	//=============
+	//Statistics Commit
+	//=============
+	this->stat_inst_int_alu_completed = 0;
+	this->stat_inst_mul_alu_completed = 0;
+	this->stat_inst_div_alu_completed = 0;
+	this->stat_inst_int_fp_completed = 0;
+	this->stat_inst_mul_fp_completed = 0;
+	this->stat_inst_div_fp_completed = 0;
+	this->stat_inst_hive_completed = 0;
+	this->stat_inst_vima_completed = 0;
+	this->stat_inst_nop_completed = 0;
+	this->stat_inst_load_completed = 0;
+	this->stat_inst_store_completed = 0;
+	this->stat_inst_branch_completed = 0;
+	this->stat_inst_other_completed = 0;
+
+	this->HAS_HIVE = 0;
+	this->HAS_VIMA = 0;
+
+	this->FETCH_WIDTH = 0;
+	this->DECODE_WIDTH = 0;
+	this->RENAME_WIDTH = 0;
+	this->DISPATCH_WIDTH = 0;
+	this->EXECUTE_WIDTH = 0;
+	this->COMMIT_WIDTH = 0;
+
+	this->FETCH_LATENCY = 0;
+	this->DECODE_LATENCY = 0;
+	this->RENAME_LATENCY = 0;
+	this->DISPATCH_LATENCY = 0;
+	this->EXECUTE_LATENCY = 0;
+	this->COMMIT_LATENCY = 0;
+
+	this->LATENCY_INTEGER_ALU = 0;
+	this->WAIT_NEXT_INT_ALU = 0;
+	this->INTEGER_ALU = 0;
+	// INTEGER MUL
+	this->LATENCY_INTEGER_MUL = 0;
+	this->WAIT_NEXT_INT_MUL = 0;
+	this->INTEGER_MUL = 0;
+	// INTEGER DIV
+	this->LATENCY_INTEGER_DIV = 0;
+	this->WAIT_NEXT_INT_DIV = 0;
+	this->INTEGER_DIV = 0;
+
+	this->QTDE_INTEGER_FU = 0;
+
+	//FP ULAS LATENCY 
+	// FLOATING POINT DIV
+	this->LATENCY_FP_DIV = 0;
+	this->WAIT_NEXT_FP_DIV = 0;
+	this->FP_DIV = 0;
+	// FLOATING POINT MUL
+	this->LATENCY_FP_MUL = 0;
+	this->WAIT_NEXT_FP_MUL = 0;
+	this->FP_MUL = 0;
+	// FLOATING POINT ALU
+	this->LATENCY_FP_ALU = 0;
+	this->WAIT_NEXT_FP_ALU = 0;
+	this->FP_ALU = 0;
+
+	this->QTDE_FP_FU = 0;
+
+	this->PARALLEL_LOADS = 0;
+	this->PARALLEL_STORES = 0;
+
+	// ======================
+	///UNIFIED FUS
+
+	// PROCESSOR BUFFERS SIZE
+	this->FETCH_BUFFER = 0;
+	this->DECODE_BUFFER = 0;
+	this->RAT_SIZE = 0;
+	this->ROB_SIZE = 0;
+	this->UNIFIED_RS = 0;
+	//MOB
+	this->MOB_READ = 0;
+	this->MOB_WRITE = 0;
+	this->MOB_HIVE = 0;
+	this->MOB_VIMA = 0;
+	// =====================
+
+	// =====================
+	// MEMORY FU
+	// =====================
+	// Load Units
+	this->LOAD_UNIT = 0;
+	this->WAIT_NEXT_MEM_LOAD = 0;
+	this->LATENCY_MEM_LOAD = 0;
+	// Store Units
+	this->STORE_UNIT = 0;
+	this->WAIT_NEXT_MEM_STORE = 0;
+	this->LATENCY_MEM_STORE = 0;
+	// HIVE Units
+	this->HIVE_UNIT = 0;
+	this->WAIT_NEXT_MEM_HIVE = 0;
+	this->LATENCY_MEM_HIVE = 0;
+	// VIMA Units
+	this->VIMA_UNIT = 0;
+	this->WAIT_NEXT_MEM_VIMA = 0;
+	this->LATENCY_MEM_VIMA = 0;
+
+	this->QTDE_MEMORY_FU = 0;
+
+	//this->KILO = 1024 = 0;
+	//this->MEGA = KILO*KILO = 0;
+
+	this->LINE_SIZE = 0;
+	this->DATA_CACHES = 0;
+	this->DATA_SIZE = NULL;
+	this->DATA_ASSOCIATIVITY = NULL;
+	this->DATA_LATENCY = NULL;
+	this->DATA_SETS = NULL;
+	this->DATA_LEVEL = NULL;
+	// I$
+	this->INST_SIZE = NULL;
+	this->INST_ASSOCIATIVITY = NULL;
+	this->INST_LATENCY = NULL;
+	this->INST_SETS = NULL;
+	this->INST_LEVEL = NULL;
+	// I$
+	this->INSTRUCTION_CACHES = 0;
+	this->RAM_LATENCY = 0;
+	this->PARALLEL_LIM_ACTIVE = 0;
+	this->MAX_PARALLEL_REQUESTS_CORE = 0;
+
+	this->PREFETCHER_ACTIVE = 0;
+
+	this->DISAMBIGUATION_ENABLED = 0;
+
+	this->DEBUG = 0;
+	this->PROCESSOR_DEBUG = 0;
+	this->FETCH_DEBUG = 0;
+	this->DECODE_DEBUG = 0;
+	this->RENAME_DEBUG = 0;
+	this->DISPATCH_DEBUG = 0;
+	this->EXECUTE_DEBUG = 0;
+	this->MOB_DEBUG = 0;
+	this->PRINT_MOB = 0;
+	this->PRINT_ROB = 0;
+	this->HIVE_DEBUG = 0;
+	this->VIMA_DEBUG = 0;
+	this->COMMIT_DEBUG = 0;
+	this->MSHR_DEBUG = 0;
+	this->MULTICORE_DEBUG = 0;
+
+	this->WAIT_CYCLE = 0;
+
+	this->memory_read_executed = 0;
+	this->memory_write_executed = 0;
+	this->memory_vima_executed = 0;
+	this->memory_hive_executed = 0;
+
+	this->robUsed = 0;
 	//Setting Pointers to NULL
 	// ========OLDEST MEMORY OPERATIONS POINTER======
 	this->oldest_read_to_send = NULL;
 	this->oldest_write_to_send = NULL;
 	this->oldest_hive_to_send = NULL;
+	this->oldest_vima_to_send = NULL;
 	// ========MOB======
 	this->memory_order_buffer_read = NULL;
 	this->memory_order_buffer_write = NULL;
 	this->memory_order_buffer_hive = NULL;
+	this->memory_order_buffer_vima = NULL;
+
+	this->memory_order_buffer_read_start = 0;
+	this->memory_order_buffer_read_used = 0;
+	this->memory_order_buffer_read_end = 0;
+	this->memory_order_buffer_write_start = 0;
+	this->memory_order_buffer_write_used = 0;
+	this->memory_order_buffer_write_end = 0;
+	this->memory_order_buffer_hive_start = 0;
+	this->memory_order_buffer_hive_used = 0;
+	this->memory_order_buffer_hive_end = 0;
+	this->memory_order_buffer_vima_start = 0;
+	this->memory_order_buffer_vima_used = 0;
+	this->memory_order_buffer_vima_end = 0;
 	//=========DESAMBIGUATION ============
 	this->disambiguator = NULL;
 	// ==========RAT======
@@ -35,15 +235,33 @@ processor_t::processor_t()
 }
 processor_t::~processor_t()
 {
+	for (size_t i = 0; i < MOB_READ; i++) {
+		utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_read[i].mem_deps_ptr_array);
+	}
+	for (size_t i = 0; i < MOB_WRITE; i++) {
+		utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_write[i].mem_deps_ptr_array);
+	}
+	if (this->get_HAS_HIVE()) {
+		for (size_t i = 0; i < MOB_HIVE; i++) {
+			utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_hive[i].mem_deps_ptr_array);
+		}
+	}
+	if (this->get_HAS_VIMA()) {
+		for (size_t i = 0; i < MOB_VIMA; i++) {
+			utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_vima[i].mem_deps_ptr_array);
+		}
+	}
 	//Memory structures
 	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_read);
 	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_write);
 	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_hive);
+	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_vima);
 	utils_t::template_delete_variable<desambiguation_t>(this->disambiguator);
 	//auxiliar var to maintain status oldest instruction
 	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_read_to_send);
 	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_write_to_send);
 	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_hive_to_send);
+	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_vima_to_send);
 
 	//deleting deps array rob
 	for (size_t i = 0; i < ROB_SIZE; i++)
@@ -71,18 +289,6 @@ processor_t::~processor_t()
 	utils_t::template_delete_array<uint64_t>(this->fu_mem_vima);
     */
 	// =====================================================================
-
-	//delete[] INST_ASSOCIATIVITY;
-	delete[] INST_LATENCY;
-	delete[] INST_SIZE;
-	delete[] INST_SETS;
-	delete[] INST_LEVEL;
-
-	delete[] DATA_ASSOCIATIVITY;
-	delete[] DATA_LATENCY;
-	delete[] DATA_SIZE;
-	delete[] DATA_SETS;
-	delete[] DATA_LEVEL;
 }
 
 uint32_t processor_t::get_cache_list(cacheId_t cache_type, libconfig::Setting &cfg_cache_defs, uint32_t *ASSOCIATIVITY, uint32_t *LATENCY, uint32_t *SIZE, uint32_t *SETS, uint32_t *LEVEL) {
@@ -97,11 +303,11 @@ uint32_t processor_t::get_cache_list(cacheId_t cache_type, libconfig::Setting &c
     libconfig::Setting &cfg_caches = cfg_cache_defs[string_cache_type];
     uint32_t N_CACHES = cfg_caches.getLength();
 
-	ASSOCIATIVITY = new uint32_t[N_CACHES];
-	LATENCY = new uint32_t[N_CACHES];
-	SIZE = new uint32_t[N_CACHES];
-	SETS = new uint32_t[N_CACHES];
-	LEVEL = new uint32_t[N_CACHES];
+	ASSOCIATIVITY = new uint32_t[N_CACHES]();
+	LATENCY = new uint32_t[N_CACHES]();
+	SIZE = new uint32_t[N_CACHES]();
+	SETS = new uint32_t[N_CACHES]();
+	LEVEL = new uint32_t[N_CACHES]();
 
 	// Get information of each instruction cache
 	for (uint32_t i = 0; i < N_CACHES; i++) {
@@ -402,7 +608,6 @@ void processor_t::allocate() {
 	// =========================================================================================
 	this->request_DRAM=0;
 	// =========================================================================================
-   
 
 	// Alocate functional units
     int num_fus = orcs_engine.instruction_set->fu_size.size();
@@ -672,6 +877,7 @@ void processor_t::fetch(){
 		operation.opcode_number = this->fetchCounter;
 		operation.readyAt = orcs_engine.get_global_cycle() + FETCH_LATENCY;
 		this->fetchCounter++;
+
 		//============================
 		///Solve Branch
 		//============================
@@ -706,7 +912,7 @@ void processor_t::fetch(){
 		if (PROCESSOR_DEBUG) ORCS_PRINTF ("%lu processor %u fetch(): opcode %lu %s, readyAt %u, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", orcs_engine.get_global_cycle(), this->processor_id, operation.opcode_number, get_enum_instruction_operation_char (operation.opcode_operation), operation.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed)
 
 		//if (!updated){
-			memory_package_t* request = new memory_package_t;
+			memory_package_t* request = new memory_package_t();
 			
 			request->clients.push_back (fetchBuffer.back());
 			request->processor_id = this->processor_id;
@@ -781,7 +987,7 @@ void processor_t::decode(){
 		}
 		ERROR_ASSERT_PRINTF(this->decodeCounter == this->fetchBuffer.front()->opcode_number, "Trying decode out-of-order");
 		this->decodeCounter++;
-
+        
 		//HIVE
 		if (get_HAS_HIVE()){
 			if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_FP_ALU ||
@@ -1581,21 +1787,19 @@ void processor_t::dispatch(){
 		//control variables
 		uint32_t total_dispatched = 0;
 		/// Control the total dispatched per FU
+        
+        for (auto &fu : this->functional_units) {
+            fu.dispatch_cnt = 0;
+        }
 
-        /*
-		uint32_t fu_int_alu = 0;
-		uint32_t fu_int_mul = 0;
-		uint32_t fu_int_div = 0;
+        this->fu_mem_load.dispatch_cnt = 0;
+        this->fu_mem_store.dispatch_cnt = 0;
 
-		uint32_t fu_fp_alu = 0;
-		uint32_t fu_fp_mul = 0;
-		uint32_t fu_fp_div = 0;
+	    if (get_HAS_VIMA())
+            this->fu_mem_vima.dispatch_cnt = 0;
 
-		uint32_t fu_mem_load = 0;
-		uint32_t fu_mem_store = 0;
-		uint32_t fu_mem_hive = 0;
-		uint32_t fu_mem_vima = 0;
-        */
+	    if (get_HAS_HIVE())
+            this->fu_mem_hive.dispatch_cnt = 0;
 
 		for (uint32_t i = 0; i < this->unified_reservation_station.size() && i < UNIFIED_RS; i++)
 		{
@@ -1617,19 +1821,35 @@ void processor_t::dispatch(){
 				break;
 			}
 
-			if ((uop->readyAt <= orcs_engine.get_global_cycle()) &&
-				(rob_line->wait_reg_deps_number == 0)){
-				ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, "Error, uop not ready being dispatched\n %s\n", rob_line->content_to_string().c_str())
-				ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_RENAME, "Error, uop not in Rename to rename stage\n %s\n",rob_line->content_to_string().c_str())
+			if ((uop->readyAt <= orcs_engine.get_global_cycle()) && (rob_line->wait_reg_deps_number == 0)){
+				ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, 
+                        "Error, uop not ready being dispatched\n %s\n", 
+                        rob_line->content_to_string().c_str());
+
+				ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_RENAME, 
+                        "Error, uop not in Rename to rename stage\n %s\n",
+                        rob_line->content_to_string().c_str());
 
 				//if dispatched
 				bool dispatched = false;
 
+                if (rob_line->uop.uop_operation == INSTRUCTION_OPERATION_BARRIER ||
+    				rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROA ||
+	   			    rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROWA ||
+				    rob_line->uop.uop_operation == INSTRUCTION_OPERATION_LAST)
+                {
+					ERROR_PRINTF("Invalid instruction LAST||BARRIER||HMC_ROA||HMC_ROWA being dispatched.\n");
+                    continue;
+                }
+
                 functional_unit_t *fu = uop->functional_unit;
 
-                if (fu->dispatch_cnt < fu->size) {
-                    for (uint8_t k = 0; k < fu->size; ++k) {
-                        if (fu->slot[k] <= orcs_engine.get_global_cycle()) {
+                if (fu->dispatch_cnt < fu->size)
+                {
+                    for (uint8_t k = 0; k < fu->size; ++k)
+                    {
+                        if (fu->slot[k] <= orcs_engine.get_global_cycle())
+                        {
                             fu->slot[k] = orcs_engine.get_global_cycle() + uop->throughput; 
                             fu->dispatch_cnt++;
                             dispatched = true;
@@ -2200,7 +2420,7 @@ uint32_t processor_t::mob_read(){
 				}
 			}
 	}
-	if (this->oldest_read_to_send != NULL && !this->oldest_read_to_send->sent && orcs_engine.cacheManager->available (oldest_read_to_send->memory_operation)){
+	if (this->oldest_read_to_send != NULL && !this->oldest_read_to_send->sent && orcs_engine.cacheManager->available (this->processor_id, oldest_read_to_send->memory_operation)){
 		if (MOB_DEBUG){
 			if (orcs_engine.get_global_cycle() > WAIT_CYCLE){
 				ORCS_PRINTF("=================================\n")
@@ -2211,7 +2431,7 @@ uint32_t processor_t::mob_read(){
 		}
 		
 		if (!oldest_read_to_send->sent){
-			memory_package_t* request = new memory_package_t;
+			memory_package_t* request = new memory_package_t();
 			
 			request->clients.push_back (oldest_read_to_send);
 			request->opcode_address = oldest_read_to_send->opcode_address;
@@ -2316,9 +2536,9 @@ uint32_t processor_t::mob_hive(){
 	if(this->oldest_hive_to_send==NULL)
 		this->oldest_hive_to_send = this->get_next_op_hive();
 	
-	if (this->oldest_hive_to_send != NULL && orcs_engine.cacheManager->available (oldest_hive_to_send->memory_operation)){
+	if (this->oldest_hive_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_hive_to_send->memory_operation)){
 		if (!this->oldest_hive_to_send->sent){
-			memory_package_t* request = new memory_package_t;
+			memory_package_t* request = new memory_package_t();
 			
 			request->clients.push_back (oldest_hive_to_send);
 			request->opcode_address = oldest_hive_to_send->opcode_address;
@@ -2358,9 +2578,9 @@ uint32_t processor_t::mob_vima(){
 	if(this->oldest_vima_to_send==NULL){
 		this->oldest_vima_to_send = this->get_next_op_vima();
 	}
-	if (this->oldest_vima_to_send != NULL && orcs_engine.cacheManager->available (oldest_vima_to_send->memory_operation)){
+	if (this->oldest_vima_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_vima_to_send->memory_operation)){
 		if (!this->oldest_vima_to_send->sent){
-			memory_package_t* request = new memory_package_t;
+			memory_package_t* request = new memory_package_t();
 			
 			request->clients.push_back (oldest_vima_to_send);
 			request->opcode_address = oldest_vima_to_send->opcode_address;
@@ -2439,7 +2659,7 @@ uint32_t processor_t::mob_write(){
 			}
 		}
 	}
-	if (this->oldest_write_to_send != NULL && orcs_engine.cacheManager->available (oldest_write_to_send->memory_operation)){
+	if (this->oldest_write_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_write_to_send->memory_operation)){
 		if (MOB_DEBUG){
 			if (orcs_engine.get_global_cycle() > WAIT_CYCLE){
 				ORCS_PRINTF("=================================\n")
@@ -2451,7 +2671,7 @@ uint32_t processor_t::mob_write(){
 
 		//sendind to write data
 		if (!this->oldest_write_to_send->sent){
-			memory_package_t* request = new memory_package_t;
+			memory_package_t* request = new memory_package_t();
 			
 			//request->clients.push_back (oldest_write_to_send);
 			request->opcode_address = oldest_write_to_send->opcode_address;
@@ -2724,7 +2944,7 @@ void processor_t::statistics(){
 		utils_t::largestSeparator(output);
 		fprintf(output, "Instruction_Per_Cycle: %1.6lf\n", (float)this->fetchCounter/this->get_ended_cycle());
 		// accessing LLC cache level
-		int32_t *cache_indexes = new int32_t[2];
+		int32_t *cache_indexes = new int32_t[3]();
 		orcs_engine.cacheManager->generateIndexArray(this->processor_id, cache_indexes);
 		fprintf(output, "MPKI: %lf\n", (float)orcs_engine.cacheManager->data_cache[2][cache_indexes[2]].get_cache_miss()/((float)this->fetchCounter/1000));
 		fprintf(output, "Average_wait_cycles_wait_mem_req: %lf\n", (float)this->mem_req_wait_cycles/this->get_stat_inst_load_completed());

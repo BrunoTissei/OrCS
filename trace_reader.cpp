@@ -91,7 +91,7 @@ void trace_reader_t::allocate(char *trace_file) {
 	this->get_total_bbls();
 
 	/// Allocate the vector of BBL sizes
-	this->binary_bbl_size = new uint32_t[this->binary_total_bbls];
+	this->binary_bbl_size = new uint32_t[this->binary_total_bbls]();
 	ERROR_ASSERT_PRINTF(this->binary_bbl_size != NULL, "Could not allocate memory\n");
 	/// Initialize
 	for (uint32_t bbl = 0; bbl < this->binary_total_bbls; bbl++) {
@@ -102,7 +102,7 @@ void trace_reader_t::allocate(char *trace_file) {
 	this->define_binary_bbl_size();
 
 	/// Create the opcode for each BBL
-	this->binary_dict = new opcode_package_t*[this->binary_total_bbls];
+	this->binary_dict = new opcode_package_t*[this->binary_total_bbls]();
 	ERROR_ASSERT_PRINTF(this->binary_dict != NULL, "Could not allocate memory\n");
 	for (uint32_t bbl = 1; bbl < this->binary_total_bbls; bbl++) {
 		this->binary_dict[bbl] = new opcode_package_t[this->binary_bbl_size[bbl]];
@@ -280,8 +280,14 @@ bool trace_reader_t::trace_string_to_opcode(char *input_string, opcode_package_t
     strcpy(opcode->opcode_assembly, sub_string);
 
     // Set instruction_id retrieved from instructions_set's map
-    opcode->instruction_id = orcs_engine.instruction_set->
-        instructions_id[std::string(opcode->opcode_assembly)];
+    auto &inst_id = orcs_engine.instruction_set->instructions_id;
+    std::string op_asm = std::string(opcode->opcode_assembly);
+
+    if (inst_id.find(op_asm) != inst_id.end()) {
+        opcode->instruction_id = inst_id[op_asm];
+    } else {
+        opcode->instruction_id = 0;
+    }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     opcode->opcode_operation = instruction_operation_t(strtoul(sub_string, NULL, 10));
@@ -486,7 +492,14 @@ bool trace_reader_t::pin_next(opcode_package_t *m) {
     strcpy(m->opcode_assembly, sub_string);
 
     // Set instruction_id retrieved from instructions_set's map
-    m->instruction_id = orcs_engine.instruction_set->instructions_id[std::string(m->opcode_assembly)];
+    auto &inst_id = orcs_engine.instruction_set->instructions_id;
+    std::string op_asm = std::string(m->opcode_assembly);
+
+    if (inst_id.find(op_asm) != inst_id.end()) {
+        m->instruction_id = inst_id[op_asm];
+    } else {
+        m->instruction_id = 0;
+    }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     m->opcode_operation = static_cast<instruction_operation_t> (std::strtoul(sub_string, NULL, 10));

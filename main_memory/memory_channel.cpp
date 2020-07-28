@@ -1,6 +1,75 @@
 #include "../simulator.hpp"
 
 memory_channel_t::memory_channel_t(){
+    this->channel_bits_mask = 0;
+    this->rank_bits_mask = 0;
+    this->bank_bits_mask = 0;
+    this->row_bits_mask = 0;
+    this->colrow_bits_mask = 0;
+    this->colbyte_bits_mask = 0;
+    this->not_column_bits_mask = 0;
+        
+    // Shifts bits
+    this->channel_bits_shift = 0;
+    this->colbyte_bits_shift = 0;
+    this->colrow_bits_shift = 0;
+    this->bank_bits_shift = 0;
+    this->row_bits_shift = 0;
+    this->controller_bits_shift = 0;
+
+    this->last_bank_selected = 0;
+
+    this->stat_row_buffer_hit = 0;
+    this->stat_row_buffer_miss = 0;
+
+    bank_is_ready = NULL;
+    bank_last_row = NULL;
+    bank_is_drain_write = NULL;
+    bank_last_command_cycle = NULL;      /// Cycle of the Last command sent to each bank
+    channel_last_command_cycle = NULL;      /// Cycle of the last command type
+    
+    this->latency_burst = 0;
+    this->i = 0;
+    this->RANK = 0;
+    this->BANK = 0;
+    this->BANK_BUFFER_SIZE = 0;
+    this->BANK_ROW_BUFFER_SIZE = 0;
+    this->CHANNEL = 0;
+    this->ROW_BUFFER = 0;
+    this->CLOSED_ROW = 0;
+    this->LINE_SIZE = 0;
+    this->BURST_WIDTH = 0;
+    this->DEBUG = 0;
+
+    this->TIMING_AL = 0;     // Added Latency for column accesses
+    this->TIMING_CAS = 0;    // Column Access Strobe (CL) latency
+    this->TIMING_CCD = 0;    // Column to Column Delay
+    this->TIMING_CWD = 0;    // Column Write Delay (CWL) or simply WL
+    this->TIMING_FAW = 0;   // Four (row) Activation Window
+    this->TIMING_RAS = 0;   // Row Access Strobe
+    this->TIMING_RC = 0;    // Row Cycle
+    this->TIMING_RCD = 0;    // Row to Column comand Delay
+    this->TIMING_RP = 0;     // Row Precharge
+    this->TIMING_RRD = 0;    // Row activation to Row activation Delay
+    this->TIMING_RTP = 0;    // Read To Precharge
+    this->TIMING_WR = 0;    // Write Recovery time
+    this->TIMING_WTR = 0;        
+}
+
+memory_channel_t::~memory_channel_t(){
+    delete[] this->bank_last_row;
+    delete[] this->bank_last_command;
+    for (i = 0; i < this->BANK; i++) delete[] this->bank_last_command_cycle[i];
+    delete[] this->bank_last_command_cycle;
+    delete[] this->channel_last_command_cycle;
+    delete[] this->bank_is_ready;
+    delete[] this->bank_is_drain_write;
+    
+    delete[] this->bank_read_requests;
+    delete[] this->bank_write_requests;
+}
+
+void memory_channel_t::allocate() {
     libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
     libconfig::Setting &cfg_memory_ctrl = cfg_root["MEMORY_CONTROLLER"];
     libconfig::Setting &cfg_processor = cfg_root["PROCESSOR"][0];
@@ -31,40 +100,21 @@ memory_channel_t::memory_channel_t(){
     set_latency_burst (LINE_SIZE/BURST_WIDTH);
 
     this->bank_last_transmission = 0;
-    this->bank_is_ready = utils_t::template_allocate_initialize_array<bool>(this->BANK, 0);
-    this->bank_last_row = utils_t::template_allocate_initialize_array<uint64_t>(this->BANK, 0);
-    this->bank_is_drain_write = utils_t::template_allocate_initialize_array<bool>(this->BANK, 0);
-    this->bank_last_command = utils_t::template_allocate_initialize_array<memory_controller_command_t>(this->BANK, MEMORY_CONTROLLER_COMMAND_ROW_ACCESS);
-    this->bank_last_command_cycle = utils_t::template_allocate_initialize_matrix<uint64_t>(this->BANK, 5, 0);
-    this->channel_last_command_cycle = utils_t::template_allocate_initialize_array<uint64_t>(MEMORY_CONTROLLER_COMMAND_NUMBER, 0);
+    this->bank_is_ready = new bool[BANK]();
+    this->bank_is_drain_write = new bool[BANK]();
+    this->bank_last_row = new uint64_t[BANK]();
+    this->bank_last_command = new memory_controller_command_t[BANK]();
+    this->channel_last_command_cycle = new uint64_t[BANK]();
+    this->bank_last_command_cycle = new uint64_t*[BANK]();
+    for (i = 0; i < BANK; i++) this->bank_last_command_cycle[i] = new uint64_t[5]();
 
-    this->bank_read_requests = (std::vector<memory_package_t*>*) malloc (this->BANK*sizeof (std::vector<memory_package_t*>));
-    std::memset((void *)this->bank_read_requests,0,(this->BANK*sizeof(std::vector<memory_package_t*>)));
-    this->bank_write_requests = (std::vector<memory_package_t*>*) malloc (this->BANK*sizeof (std::vector<memory_package_t*>));
-    std::memset((void *)this->bank_write_requests,0,(this->BANK*sizeof(std::vector<memory_package_t*>)));
-
+    this->bank_read_requests = new std::vector<memory_package_t*>[BANK]();
+    this->bank_write_requests = new std::vector<memory_package_t*>[BANK]();
     this->set_masks();
-}
-
-memory_channel_t::~memory_channel_t(){
-    utils_t::template_delete_array<uint64_t>(this->bank_last_row);
-    utils_t::template_delete_array<memory_controller_command_t>(this->bank_last_command);
-    utils_t::template_delete_matrix<uint64_t>(this->bank_last_command_cycle, this->BANK);
-    utils_t::template_delete_array<uint64_t>(this->channel_last_command_cycle);
-    utils_t::template_delete_array<bool>(this->bank_is_ready);
-    utils_t::template_delete_array<bool>(this->bank_is_drain_write);
-
-    for (size_t i = 0; i < this->BANK; i++){
-        vector<memory_package_t*>().swap(this->bank_read_requests[i]);  
-        vector<memory_package_t*>().swap(this->bank_write_requests[i]);  
-    }
-    free (this->bank_read_requests);
-    free (this->bank_write_requests);
 }
 
 void memory_channel_t::set_masks(){       
     ERROR_ASSERT_PRINTF(CHANNEL > 1 && utils_t::check_if_power_of_two(CHANNEL),"Wrong number of memory_channels (%u).\n",CHANNEL);
-    uint64_t i;
     
     this->channel_bits_shift=0;
     this->colbyte_bits_shift=0;
@@ -119,6 +169,7 @@ void memory_channel_t::set_masks(){
 
 void memory_channel_t::addRequest (memory_package_t* request){
     uint64_t bank = this->get_bank(request->memory_address);
+    //ORCS_PRINTF ("New DRAM request! row: %lu | bank: %lu | channel: %lu | column: %lu\n", get_row (request->memory_address), get_bank (request->memory_address), get_channel (request->memory_address), get_column (request->memory_address))
     switch (request->memory_operation){
         case MEMORY_OPERATION_READ:
         case MEMORY_OPERATION_INST:
@@ -172,7 +223,7 @@ memory_package_t* memory_channel_t::findNextRead (uint32_t bank){
             break;
         }
         case REQUEST_PRIORITY_ROW_BUFFER_HITS_FIRST:{
-            for (size_t i = 0; i < bank_read_requests[bank].size(); i++){
+            for (i = 0; i < bank_read_requests[bank].size(); i++){
                 if (bank_last_row[bank] == get_row (bank_read_requests[bank][i]->memory_address)){
                     return bank_read_requests[bank][i];
                 }
@@ -209,6 +260,7 @@ void memory_channel_t::clock(){
     if (current_entry != NULL) {
         bank = this->get_bank(current_entry->memory_address);
         row = this->get_row(current_entry->memory_address);
+        //if (current_entry->is_vima) ORCS_PRINTF ("%lu Request! address: %lu | row: %u | bank: %u | channel: %lu | column: %lu\n", orcs_engine.get_global_cycle(), current_entry->memory_address, row, bank, get_channel (current_entry->memory_address), get_column (current_entry->memory_address))
         
         if (!bank_is_ready[bank]){
             switch (bank_last_command[bank]){

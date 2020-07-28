@@ -32,7 +32,7 @@ branch_predictor_t::~branch_predictor_t() {
 	this->branchPredictor = NULL;
 }
 
-void branch_predictor_t::allocate() {
+void branch_predictor_t::allocate (uint32_t processor_id) {
 	// reading processor information about branch predictor
 	libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
 	libconfig::Setting &cfg_branch_pred = cfg_root["PROCESSOR"][0];
@@ -41,18 +41,20 @@ void branch_predictor_t::allocate() {
 	set_BTB_MISS_PENALITY(cfg_branch_pred["BTB_MISS_PENALITY"]);
 	set_MISSPREDICTION_PENALITY(cfg_branch_pred["MISSPREDICTION_PENALITY"]);
 
+	this->processor_id = processor_id;
+
 	uint32_t size  = BTB_ENTRIES/BTB_WAYS;
-    this->btb = new btb_t[size];
+    this->btb = new btb_t[size]();
 	this->index = 0;
 	this->way = 0;
     for (size_t i = 0; i < size; i++) {
-        this->btb[i].btb_entry = new btb_line_t[BTB_WAYS];
+        this->btb[i].btb_entry = new btb_line_t[BTB_WAYS]();
     	std::memset(&this->btb[i].btb_entry[0],0,(BTB_WAYS*sizeof(btb_line_t)));
     }
     switch (this->BRANCH_PREDICTION_METHOD) {
 		case BRANCH_PREDICTION_METHOD_PIECEWISE: {
 			this->branchPredictor = new piecewise_t();
-    		this->branchPredictor->allocate();
+    		this->branchPredictor->allocate (this->processor_id);
 			break;
 		}
 		case BRANCH_PREDICTION_METHOD_TWO_BIT: {
@@ -153,7 +155,7 @@ uint32_t branch_predictor_t::solveBranch(opcode_package_t branchInstrucion, opco
     }
 
     // Predict Branch
-    taken_t branchStatus = this->branchPredictor->predict(branchInstrucion.opcode_address);
+	taken_t branchStatus = this->branchPredictor->predict(branchInstrucion.opcode_address);
     if ((nextInstruction.opcode_address != this->btb[this->index].btb_entry[this->way].targetAddress)&&
         (this->btb[this->index].btb_entry[this->way].typeBranch == BRANCH_COND)){
             this->branchTaken++;
