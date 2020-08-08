@@ -35,9 +35,9 @@ memory_package_t::memory_package_t() {
     this->DEBUG = 0;
     this->MSHR_DEBUG = 0;
 
-    libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
-	libconfig::Setting &cfg_processor = cfg_root["PROCESSOR"][0];
-    set_MSHR_DEBUG (cfg_processor["MSHR_DEBUG"]);
+    //libconfig::Setting &cfg_root = orcs_engine.configuration->getConfig();
+	//libconfig::Setting &cfg_processor = cfg_root["PROCESSOR"][0];
+    //set_MSHR_DEBUG (cfg_processor["MSHR_DEBUG"]);
 }
 
 memory_package_t::~memory_package_t(){

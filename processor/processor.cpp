@@ -218,77 +218,51 @@ processor_t::processor_t()
 	this->register_alias_table = NULL;
 	// ==========ROB========
 	this->reorderBuffer = NULL;
-	// ======FUs=========
-	// Integer FUs
-	/*
-	this->fu_int_alu = NULL;
-	this->fu_int_mul = NULL;
-	this->fu_int_div = NULL;
-	// Floating Points FUs
-	this->fu_fp_alu = NULL;
-	this->fu_fp_mul = NULL;
-	this->fu_fp_div = NULL;
-	*/
-	// Memory FUs
-	//this->fu_mem_load = NULL;
-	//this->fu_mem_store = NULL;
 }
+
 processor_t::~processor_t()
 {
 	for (size_t i = 0; i < MOB_READ; i++) {
-		utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_read[i].mem_deps_ptr_array);
+		utils_t::template_delete_array(this->memory_order_buffer_read[i].mem_deps_ptr_array);
 	}
+
 	for (size_t i = 0; i < MOB_WRITE; i++) {
-		utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_write[i].mem_deps_ptr_array);
+		utils_t::template_delete_array(this->memory_order_buffer_write[i].mem_deps_ptr_array);
 	}
+
 	if (this->get_HAS_HIVE()) {
 		for (size_t i = 0; i < MOB_HIVE; i++) {
-			utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_hive[i].mem_deps_ptr_array);
+			utils_t::template_delete_array(this->memory_order_buffer_hive[i].mem_deps_ptr_array);
 		}
 	}
+
 	if (this->get_HAS_VIMA()) {
 		for (size_t i = 0; i < MOB_VIMA; i++) {
-			utils_t::template_delete_array<memory_order_buffer_line_t *>(this->memory_order_buffer_vima[i].mem_deps_ptr_array);
+			utils_t::template_delete_array(this->memory_order_buffer_vima[i].mem_deps_ptr_array);
 		}
 	}
+
 	//Memory structures
-	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_read);
-	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_write);
-	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_hive);
-	utils_t::template_delete_array<memory_order_buffer_line_t>(this->memory_order_buffer_vima);
-	utils_t::template_delete_variable<desambiguation_t>(this->disambiguator);
+	utils_t::template_delete_array(this->memory_order_buffer_read);
+	utils_t::template_delete_array(this->memory_order_buffer_write);
+	utils_t::template_delete_array(this->memory_order_buffer_hive);
+	utils_t::template_delete_array(this->memory_order_buffer_vima);
+	utils_t::template_delete_variable(this->disambiguator);
 	//auxiliar var to maintain status oldest instruction
-	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_read_to_send);
-	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_write_to_send);
-	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_hive_to_send);
-	utils_t::template_delete_variable<memory_order_buffer_line_t>(this->oldest_vima_to_send);
+	utils_t::template_delete_variable(this->oldest_read_to_send);
+	utils_t::template_delete_variable(this->oldest_write_to_send);
+	utils_t::template_delete_variable(this->oldest_hive_to_send);
+	utils_t::template_delete_variable(this->oldest_vima_to_send);
 
 	//deleting deps array rob
 	for (size_t i = 0; i < ROB_SIZE; i++)
 	{
-		utils_t::template_delete_array<reorder_buffer_line_t>(this->reorderBuffer[i].reg_deps_ptr_array[0]);
+		utils_t::template_delete_array(this->reorderBuffer[i].reg_deps_ptr_array[0]);
 	}
 	// deleting rob
-	utils_t::template_delete_array<reorder_buffer_line_t>(this->reorderBuffer);
+	utils_t::template_delete_array(this->reorderBuffer);
 	//delete RAT
-	utils_t::template_delete_array<reorder_buffer_line_t *>(this->register_alias_table);
-
-    /*
-	//deleting fus int
-	utils_t::template_delete_array<uint64_t>(this->fu_int_alu);
-	utils_t::template_delete_array<uint64_t>(this->fu_int_mul);
-	utils_t::template_delete_array<uint64_t>(this->fu_int_div);
-	//deleting fus fp
-	utils_t::template_delete_array<uint64_t>(this->fu_fp_alu);
-	utils_t::template_delete_array<uint64_t>(this->fu_fp_mul);
-	utils_t::template_delete_array<uint64_t>(this->fu_fp_div);
-	//deleting fus memory
-	utils_t::template_delete_array<uint64_t>(this->fu_mem_load);
-	utils_t::template_delete_array<uint64_t>(this->fu_mem_store);
-	utils_t::template_delete_array<uint64_t>(this->fu_mem_hive);
-	utils_t::template_delete_array<uint64_t>(this->fu_mem_vima);
-    */
-	// =====================================================================
+	utils_t::template_delete_array(this->register_alias_table);
 }
 
 uint32_t processor_t::get_cache_list(cacheId_t cache_type, libconfig::Setting &cfg_cache_defs, uint32_t *ASSOCIATIVITY, uint32_t *LATENCY, uint32_t *SIZE, uint32_t *SETS, uint32_t *LEVEL) {
@@ -933,6 +907,7 @@ void processor_t::fetch(){
 			request->sent_to_ram = false;
 			request->type = INSTRUCTION;
 			request->op_count[request->memory_operation]++;
+            request->MSHR_DEBUG = this->MSHR_DEBUG;
 
 			if (!orcs_engine.cacheManager->searchData(request)) delete request;
 		//}
@@ -1726,118 +1701,117 @@ void processor_t::rename(){
 }
 // ============================================================================
 void processor_t::dispatch(){
-	if (DISPATCH_DEBUG){
-		if(orcs_engine.get_global_cycle()>WAIT_CYCLE){
+	if (DISPATCH_DEBUG) {
+		if (orcs_engine.get_global_cycle()>WAIT_CYCLE) {
 			ORCS_PRINTF("====================================================================\n")
 			ORCS_PRINTF("Dispatch Stage\n")
 			ORCS_PRINTF("====================================================================\n")
 		}
 	}
-		//control variables
-		uint32_t total_dispatched = 0;
-		/// Control the total dispatched per FU
-        
-        for (auto &fu : this->functional_units) {
-            fu.dispatch_cnt = 0;
+
+    uint32_t total_dispatched = 0;
+
+    for (auto &fu : this->functional_units) {
+        fu.dispatch_cnt = 0;
+    }
+
+    this->fu_mem_load.dispatch_cnt = 0;
+    this->fu_mem_store.dispatch_cnt = 0;
+
+    if (get_HAS_VIMA())
+        this->fu_mem_vima.dispatch_cnt = 0;
+
+    if (get_HAS_HIVE())
+        this->fu_mem_hive.dispatch_cnt = 0;
+
+
+    for (uint32_t i = 0; i < this->unified_reservation_station.size() && i < UNIFIED_RS; i++)
+    {
+        //pointer to entry
+        reorder_buffer_line_t *rob_line = this->unified_reservation_station[i];
+        uop_package_t *uop = &(rob_line->uop);
+
+        if (DISPATCH_DEBUG){
+            if(orcs_engine.get_global_cycle()>WAIT_CYCLE){
+                ORCS_PRINTF("cycle %lu\n", orcs_engine.get_global_cycle())
+                ORCS_PRINTF("=================\n")
+                ORCS_PRINTF("Unified Reservations Station on use: %lu\n",this->unified_reservation_station.size())
+                ORCS_PRINTF("Trying Dispatch %s\n", rob_line->content_to_string().c_str())
+                ORCS_PRINTF("=================\n")
+            }
+        }
+    
+        if (total_dispatched >= DISPATCH_WIDTH){
+            break;
         }
 
-        this->fu_mem_load.dispatch_cnt = 0;
-        this->fu_mem_store.dispatch_cnt = 0;
+        if ((uop->readyAt <= orcs_engine.get_global_cycle()) && (rob_line->wait_reg_deps_number == 0)){
+            ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, 
+                    "Error, uop not ready being dispatched\n %s\n", 
+                    rob_line->content_to_string().c_str());
 
-	    if (get_HAS_VIMA())
-            this->fu_mem_vima.dispatch_cnt = 0;
+            ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_RENAME, 
+                    "Error, uop not in Rename to rename stage\n %s\n",
+                    rob_line->content_to_string().c_str());
 
-	    if (get_HAS_HIVE())
-            this->fu_mem_hive.dispatch_cnt = 0;
+            //if dispatched
+            bool dispatched = false;
 
-		for (uint32_t i = 0; i < this->unified_reservation_station.size() && i < UNIFIED_RS; i++)
-		{
-			//pointer to entry
-			reorder_buffer_line_t *rob_line = this->unified_reservation_station[i];
-            uop_package_t *uop = &(rob_line->uop);
+            if (rob_line->uop.uop_operation == INSTRUCTION_OPERATION_BARRIER ||
+                rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROA ||
+                rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROWA ||
+                rob_line->uop.uop_operation == INSTRUCTION_OPERATION_LAST)
+            {
+                ERROR_PRINTF("Invalid instruction LAST||BARRIER||HMC_ROA||HMC_ROWA being dispatched.\n");
+                continue;
+            }
 
-			if (DISPATCH_DEBUG){
-				if(orcs_engine.get_global_cycle()>WAIT_CYCLE){
-					ORCS_PRINTF("cycle %lu\n", orcs_engine.get_global_cycle())
-					ORCS_PRINTF("=================\n")
-					ORCS_PRINTF("Unified Reservations Station on use: %lu\n",this->unified_reservation_station.size())
-					ORCS_PRINTF("Trying Dispatch %s\n", rob_line->content_to_string().c_str())
-					ORCS_PRINTF("=================\n")
-				}
-			}
-		
-			if (total_dispatched >= DISPATCH_WIDTH){
-				break;
-			}
+            functional_unit_t *fu = uop->functional_unit;
 
-			if ((uop->readyAt <= orcs_engine.get_global_cycle()) && (rob_line->wait_reg_deps_number == 0)){
-				ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, 
-                        "Error, uop not ready being dispatched\n %s\n", 
-                        rob_line->content_to_string().c_str());
-
-				ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_RENAME, 
-                        "Error, uop not in Rename to rename stage\n %s\n",
-                        rob_line->content_to_string().c_str());
-
-				//if dispatched
-				bool dispatched = false;
-
-                if (rob_line->uop.uop_operation == INSTRUCTION_OPERATION_BARRIER ||
-    				rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROA ||
-	   			    rob_line->uop.uop_operation == INSTRUCTION_OPERATION_HMC_ROWA ||
-				    rob_line->uop.uop_operation == INSTRUCTION_OPERATION_LAST)
+            if (fu->dispatch_cnt < fu->size)
+            {
+                for (uint8_t k = 0; k < fu->size; ++k)
                 {
-					ERROR_PRINTF("Invalid instruction LAST||BARRIER||HMC_ROA||HMC_ROWA being dispatched.\n");
-                    continue;
-                }
-
-                functional_unit_t *fu = uop->functional_unit;
-
-                if (fu->dispatch_cnt < fu->size)
-                {
-                    for (uint8_t k = 0; k < fu->size; ++k)
+                    if (fu->slot[k] <= orcs_engine.get_global_cycle())
                     {
-                        if (fu->slot[k] <= orcs_engine.get_global_cycle())
-                        {
-                            fu->slot[k] = orcs_engine.get_global_cycle() + uop->throughput; 
-                            fu->dispatch_cnt++;
-                            dispatched = true;
-                            rob_line->stage = PROCESSOR_STAGE_EXECUTION;
-                            uop->updatePackageWait(uop->latency);
-                            break;
-                        }
+                        fu->slot[k] = orcs_engine.get_global_cycle() + uop->throughput; 
+                        fu->dispatch_cnt++;
+                        dispatched = true;
+                        rob_line->stage = PROCESSOR_STAGE_EXECUTION;
+                        uop->updatePackageWait(uop->latency);
+                        break;
+                    }
+                }
+            }
+
+            //remover os postos em execucao aqui
+            if (dispatched == true)
+            {
+                if (DISPATCH_DEBUG) {
+                    if(orcs_engine.get_global_cycle()>WAIT_CYCLE) {
+                        ORCS_PRINTF("Dispatched %s\n", rob_line->content_to_string().c_str())
+                        ORCS_PRINTF("===================================================================\n")
                     }
                 }
 
-				//remover os postos em execucao aqui
-				if (dispatched == true)
-				{
-                    if (DISPATCH_DEBUG) {
-                        if(orcs_engine.get_global_cycle()>WAIT_CYCLE) {
-                            ORCS_PRINTF("Dispatched %s\n", rob_line->content_to_string().c_str())
-                            ORCS_PRINTF("===================================================================\n")
-                        }
-                    }
+                // update Dispatched
+                total_dispatched++;
+                // insert on FUs waiting structure
+                this->unified_functional_units.push_back(rob_line);
+                // remove from reservation station
+                this->unified_reservation_station.erase(this->unified_reservation_station.begin() + i);
+                i--;
+            } //end if dispatched
 
-					// update Dispatched
-					total_dispatched++;
-					// insert on FUs waiting structure
-					this->unified_functional_units.push_back(rob_line);
-					// remove from reservation station
-					this->unified_reservation_station.erase(this->unified_reservation_station.begin() + i);
-					i--;
-				} //end if dispatched
+            if (PROCESSOR_DEBUG) 
+                ORCS_PRINTF ("%lu processor %u dispatch(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", 
+                        orcs_engine.get_global_cycle(), 
+                        this->processor_id, rob_line->uop.uop_number, 
+                        get_enum_instruction_operation_char (rob_line->uop.uop_operation), 
+                        rob_line->uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed);
 
-				if (PROCESSOR_DEBUG) 
-                    ORCS_PRINTF ("%lu processor %u dispatch(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", 
-                            orcs_engine.get_global_cycle(), 
-                            this->processor_id, rob_line->uop.uop_number, 
-                            get_enum_instruction_operation_char (rob_line->uop.uop_operation), 
-                            rob_line->uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed);
-
-			}	 //end if robline is ready
-		}		  //end for
-		// sleep(1);
+        } //end if robline is ready
+    } //end for
 } //end method
 
 //clean_mob_write() copy!
@@ -2178,6 +2152,7 @@ uint32_t processor_t::mob_read(){
 			request->uop_number = oldest_read_to_send->uop_number;
 			request->processor_id = this->processor_id;
 			request->op_count[request->memory_operation]++;
+            request->MSHR_DEBUG = this->MSHR_DEBUG;
 
 			if (orcs_engine.cacheManager->searchData(request)){
 				this->oldest_read_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
@@ -2285,6 +2260,7 @@ uint32_t processor_t::mob_hive(){
 			request->uop_number = oldest_hive_to_send->uop_number;
 			request->processor_id = this->processor_id;
 			request->op_count[request->memory_operation]++;
+            request->MSHR_DEBUG = this->MSHR_DEBUG;
 
 			if (orcs_engine.cacheManager->searchData(request)){
 				this->oldest_hive_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
@@ -2327,6 +2303,7 @@ uint32_t processor_t::mob_vima(){
 			request->uop_number = oldest_vima_to_send->uop_number;
 			request->processor_id = this->processor_id;
 			request->op_count[request->memory_operation]++;
+            request->MSHR_DEBUG = this->MSHR_DEBUG;
 
 			if (orcs_engine.cacheManager->searchData(request)){
 				this->oldest_vima_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
@@ -2418,6 +2395,7 @@ uint32_t processor_t::mob_write(){
 			request->uop_number = oldest_write_to_send->uop_number;
 			request->processor_id = this->processor_id;
 			request->op_count[request->memory_operation]++;
+            request->MSHR_DEBUG = this->MSHR_DEBUG;
 
 			if (orcs_engine.cacheManager->searchData(request)){
 				this->oldest_write_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
