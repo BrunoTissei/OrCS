@@ -74,13 +74,14 @@ void uop_package_t::opcode_to_uop(
     this->throughput = throughput;
     this->functional_unit = fu_id;
 
-    // memcpy(this->read_regs, opcode.read_regs, sizeof(int32_t) * MAX_REGISTERS);
-    // memcpy(this->write_regs, opcode.write_regs, sizeof(int32_t) * MAX_REGISTERS);
+    memcpy(this->read_regs, opcode.read_regs, sizeof(int32_t) * MAX_REGISTERS);
+    memcpy(this->write_regs, opcode.write_regs, sizeof(int32_t) * MAX_REGISTERS);
 
     this->uop_operation = uop_operation;
     this->memory_address = memory_address;
     this->memory_size = memory_size;
 }
+
 void uop_package_t::updatePackageUntrated(uint32_t stallTime){
     this->status = PACKAGE_STATE_UNTREATED;
     this->readyAt = orcs_engine.get_global_cycle()+stallTime;

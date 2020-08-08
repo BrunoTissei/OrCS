@@ -433,6 +433,8 @@ void processor_t::allocate() {
 	n_caches = get_cache_list(DATA, cfg_cache_mem, DATA_ASSOCIATIVITY, DATA_LATENCY, DATA_SIZE, DATA_SETS, DATA_LEVEL);
 	set_DATA_CACHES(n_caches);
 
+	set_CACHE_LEVELS((INSTRUCTION_CACHES > DATA_CACHES) ? INSTRUCTION_CACHES : DATA_CACHES);
+
 	// Memory controller defaults
 	libconfig::Setting &cfg_memory = cfg_root["MEMORY_CONTROLLER"];
 
@@ -901,8 +903,8 @@ void processor_t::fetch(){
 			request->is_hive = false;
 			request->is_vima = false;
 			request->status = PACKAGE_STATE_UNTREATED;
-			request->readyAt = fetchBuffer.back()->readyAt;
-			request->born_cycle = fetchBuffer.back()->readyAt;
+			request->readyAt = orcs_engine.get_global_cycle();
+			request->born_cycle = orcs_engine.get_global_cycle();
 			request->sent_to_cache = false;
 			request->sent_to_ram = false;
 			request->type = INSTRUCTION;
@@ -1344,21 +1346,14 @@ void processor_t::decode(){
 // ============================================================================
 void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 	/// Control the Register Dependency - Register READ
-	for (uint32_t k = 0; k < MAX_REGISTERS; k++)
-	{
-		if (new_rob_line->uop.read_regs[k] < 0)
-		{
-			break;
-		}
+	for (uint32_t k = 0; k < MAX_REGISTERS; k++) {
+		if (new_rob_line->uop.read_regs[k] < 0) break;
 		uint32_t read_register = new_rob_line->uop.read_regs[k];
 		ERROR_ASSERT_PRINTF(read_register < RAT_SIZE, "Read Register (%d) > Register Alias Table Size (%d)\n", read_register, RAT_SIZE);
 		/// If there is a dependency
-		if (this->register_alias_table[read_register] != NULL)
-		{
-			for (uint32_t j = 0; j < ROB_SIZE; j++)
-			{
-				if (this->register_alias_table[read_register]->reg_deps_ptr_array[j] == NULL)
-				{
+		if (this->register_alias_table[read_register] != NULL){
+			for (uint32_t j = 0; j < ROB_SIZE; j++){
+				if (this->register_alias_table[read_register]->reg_deps_ptr_array[j] == NULL){
 					this->register_alias_table[read_register]->wake_up_elements_counter++;
 					this->register_alias_table[read_register]->reg_deps_ptr_array[j] = new_rob_line;
 					new_rob_line->wait_reg_deps_number++;
@@ -1369,13 +1364,10 @@ void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 	}
 
 	/// Control the Register Dependency - Register WRITE
-	for (uint32_t k = 0; k < MAX_REGISTERS; k++)
-	{
+	for (uint32_t k = 0; k < MAX_REGISTERS; k++) {
 		this->add_registerWrite();
-		if (new_rob_line->uop.write_regs[k] < 0)
-		{
-			break;
-		}
+		if (new_rob_line->uop.write_regs[k] < 0) break;
+
 		uint32_t write_register = new_rob_line->uop.write_regs[k];
 		ERROR_ASSERT_PRINTF(write_register < RAT_SIZE, "Write Register (%d) > Register Alias Table Size (%d)\n", write_register, RAT_SIZE);
 
@@ -1384,13 +1376,6 @@ void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 }
 // ============================================================================
 void processor_t::rename(){
-	/*if (!this->decodeBuffer.is_empty() && orcs_engine.get_global_cycle() < 300000){
-		ORCS_PRINTF ("Cycle %lu\n", orcs_engine.get_global_cycle())
-		for (size_t i = 0; i < this->decodeBuffer.get_size(); i++){
-			ORCS_PRINTF ("%lu %s %s %lu\n", i, get_enum_instruction_operation_char (this->decodeBuffer[i].opcode_operation), get_enum_package_state_char (this->decodeBuffer[i].status), this->decodeBuffer[i].readyAt)
-		}
-	}*/
-
 	if (RENAME_DEBUG){
 		ORCS_PRINTF("Rename Stage\n")
 	}
@@ -1684,6 +1669,9 @@ void processor_t::rename(){
 			this->reorderBuffer[pos_rob].uop.uop_operation == INSTRUCTION_OPERATION_HIVE_FP_MUL))
 		{
 			mob_line->rob_ptr = &this->reorderBuffer[pos_rob];
+			if (DISAMBIGUATION_ENABLED){
+				this->disambiguator->make_memory_dependences(this->reorderBuffer[pos_rob].mob_ptr);
+			}
 		} else if (this->get_HAS_VIMA() && (this->reorderBuffer[pos_rob].uop.uop_operation == INSTRUCTION_OPERATION_VIMA_INT_ALU ||
 			this->reorderBuffer[pos_rob].uop.uop_operation == INSTRUCTION_OPERATION_VIMA_INT_DIV ||
 			this->reorderBuffer[pos_rob].uop.uop_operation == INSTRUCTION_OPERATION_VIMA_INT_MUL ||
@@ -1694,6 +1682,9 @@ void processor_t::rename(){
 			this->reorderBuffer[pos_rob].uop.uop_operation == INSTRUCTION_OPERATION_VIMA_FP_MLA))
 		{
 			mob_line->rob_ptr = &this->reorderBuffer[pos_rob];
+			if (DISAMBIGUATION_ENABLED){
+				this->disambiguator->make_memory_dependences(this->reorderBuffer[pos_rob].mob_ptr);
+			}
 		}
 
 		if (PROCESSOR_DEBUG) ORCS_PRINTF ("%lu processor %u rename(): uop %lu %s, readyAt %lu, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n", orcs_engine.get_global_cycle(), this->processor_id, this->reorderBuffer[pos_rob].uop.uop_number, get_enum_instruction_operation_char (this->reorderBuffer[pos_rob].uop.uop_operation), this->reorderBuffer[pos_rob].uop.readyAt, this->fetchBuffer.get_size(), this->decodeBuffer.get_size(), this->robUsed)
@@ -1825,9 +1816,10 @@ void processor_t::clean_mob_hive(){
 			this->memory_order_buffer_hive[pos].rob_ptr->uop.updatePackageReady(COMMIT_LATENCY);
 			this->memory_order_buffer_hive[pos].processed=true;
 			this->memory_hive_executed--;
-			/*if (DISAMBIGUATION_ENABLED){
+			this->solve_registers_dependency(this->memory_order_buffer_hive[pos].rob_ptr);
+			if (DISAMBIGUATION_ENABLED){
 				this->disambiguator->solve_memory_dependences(&this->memory_order_buffer_hive[pos]);
-			}*/
+			}
 			if (DEBUG) ORCS_PRINTF ("Processor clean_mob_hive(): HIVE instruction %lu %s, %u!\n", this->memory_order_buffer_hive[pos].uop_number, get_enum_processor_stage_char (this->memory_order_buffer_hive[pos].rob_ptr->stage), this->memory_order_buffer_hive[pos].readyAt)
 		}
 		pos++;
@@ -1846,9 +1838,9 @@ void processor_t::clean_mob_vima(){
 			this->memory_order_buffer_vima[pos].processed=true;
 			this->memory_vima_executed--;
 			this->solve_registers_dependency(this->memory_order_buffer_vima[pos].rob_ptr);
-			/*if (DISAMBIGUATION_ENABLED){
+			if (DISAMBIGUATION_ENABLED){
 				this->disambiguator->solve_memory_dependences(&this->memory_order_buffer_vima[pos]);
-			}*/
+			}
 			if (DEBUG) ORCS_PRINTF ("Processor clean_mob_vima(): HIVE instruction %lu %s, %u!\n", this->memory_order_buffer_vima[pos].uop_number, get_enum_processor_stage_char (this->memory_order_buffer_vima[pos].rob_ptr->stage), this->memory_order_buffer_vima[pos].readyAt)
 		}
 		pos++;
@@ -2120,7 +2112,7 @@ uint32_t processor_t::mob_read(){
 				}
 			}
 	}
-	if (this->oldest_read_to_send != NULL && !this->oldest_read_to_send->sent && orcs_engine.cacheManager->available (this->processor_id, oldest_read_to_send->memory_operation)){
+	if (this->oldest_read_to_send != NULL && !this->oldest_read_to_send->sent && orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_READ)){
 		if (MOB_DEBUG){
 			if (orcs_engine.get_global_cycle() > WAIT_CYCLE){
 				ORCS_PRINTF("=================================\n")
@@ -2218,12 +2210,6 @@ memory_order_buffer_line_t* processor_t::get_next_op_vima(){
 			this->memory_order_buffer_vima[pos].sent==false &&
         	this->memory_order_buffer_vima[pos].wait_mem_deps_number == 0 &&
 			this->memory_order_buffer_vima[pos].readyToGo <= orcs_engine.get_global_cycle()){
-				//if (DEBUG) {
-					//ORCS_PRINTF ("Processor get_next_op_vima(): fetching next HIVE instruction from MOB.\n")
-					//for(uint32_t j = 0; j < this->memory_order_buffer_vima_used; j++){
-						//ORCS_PRINTF ("Processor get_next_op_vima(): %s %s %lu %u %lu.\n", get_enum_package_state_char (this->memory_order_buffer_vima[(this->memory_order_buffer_vima_start+j) % MOB_HIVE].status), get_enum_memory_operation_char (this->memory_order_buffer_vima[(this->memory_order_buffer_vima_start+j) % MOB_HIVE].memory_operation), this->memory_order_buffer_vima[(this->memory_order_buffer_vima_start+j) % MOB_HIVE].uop_number, this->memory_order_buffer_vima[(this->memory_order_buffer_vima_start+j) % MOB_HIVE].wait_mem_deps_number, this->memory_order_buffer_vima[(this->memory_order_buffer_vima_start+j) % MOB_HIVE].readyToGo)
-					//}
-				//}
 				return &this->memory_order_buffer_vima[pos];
 		} 
 		pos++;
@@ -2237,7 +2223,7 @@ uint32_t processor_t::mob_hive(){
 	if(this->oldest_hive_to_send==NULL)
 		this->oldest_hive_to_send = this->get_next_op_hive();
 	
-	if (this->oldest_hive_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_hive_to_send->memory_operation)){
+	if (this->oldest_hive_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_READ)){
 		if (!this->oldest_hive_to_send->sent){
 			memory_package_t* request = new memory_package_t();
 			
@@ -2280,7 +2266,7 @@ uint32_t processor_t::mob_vima(){
 	if(this->oldest_vima_to_send==NULL){
 		this->oldest_vima_to_send = this->get_next_op_vima();
 	}
-	if (this->oldest_vima_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_vima_to_send->memory_operation)){
+	if (this->oldest_vima_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_READ)){
 		if (!this->oldest_vima_to_send->sent){
 			memory_package_t* request = new memory_package_t();
 			
@@ -2362,7 +2348,7 @@ uint32_t processor_t::mob_write(){
 			}
 		}
 	}
-	if (this->oldest_write_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, oldest_write_to_send->memory_operation)){
+	if (this->oldest_write_to_send != NULL && orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_WRITE)){
 		if (MOB_DEBUG){
 			if (orcs_engine.get_global_cycle() > WAIT_CYCLE){
 				ORCS_PRINTF("=================================\n")
@@ -2582,18 +2568,12 @@ void processor_t::commit(){
 // ============================================================================
 void processor_t::solve_registers_dependency(reorder_buffer_line_t *rob_line){
 		/// Remove pointers from Register Alias Table (RAT)
-		for (uint32_t j = 0; j < MAX_REGISTERS; j++)
-		{
-			if (rob_line->uop.write_regs[j] < 0)
-			{
-				break;
-			}
+		for (uint32_t j = 0; j < MAX_REGISTERS; j++) {
+			if (rob_line->uop.write_regs[j] < 0) break;
+			
 			uint32_t write_register = rob_line->uop.write_regs[j];
-			ERROR_ASSERT_PRINTF(write_register < RAT_SIZE, "Read Register (%d) > Register Alias Table Size (%d)\n",
-								write_register, RAT_SIZE);
-			if (this->register_alias_table[write_register] != NULL &&
-				this->register_alias_table[write_register]->uop.uop_number == rob_line->uop.uop_number)
-			{
+			ERROR_ASSERT_PRINTF(write_register < RAT_SIZE, "Read Register (%d) > Register Alias Table Size (%d)\n", write_register, RAT_SIZE);
+			if (this->register_alias_table[write_register] != NULL && this->register_alias_table[write_register]->uop.uop_number == rob_line->uop.uop_number){
 				this->register_alias_table[write_register] = NULL;
 			} //end if
 		}	 //end for
@@ -2604,15 +2584,11 @@ void processor_t::solve_registers_dependency(reorder_buffer_line_t *rob_line){
 		for (uint32_t j = 0; j < ROB_SIZE; j++)
 		{
 			/// There is an unsolved dependency
-			if (rob_line->reg_deps_ptr_array[j] != NULL)
-			{
+			if (rob_line->reg_deps_ptr_array[j] != NULL){
 				rob_line->wake_up_elements_counter--;
 				rob_line->reg_deps_ptr_array[j]->wait_reg_deps_number--;
 				/// This update the ready cycle, and it is usefull to compute the time each instruction waits for the functional unit
-				if (rob_line->reg_deps_ptr_array[j]->uop.readyAt <= orcs_engine.get_global_cycle())
-				{
-					rob_line->reg_deps_ptr_array[j]->uop.readyAt = orcs_engine.get_global_cycle();
-				}
+				if (rob_line->reg_deps_ptr_array[j]->uop.readyAt <= orcs_engine.get_global_cycle()) rob_line->reg_deps_ptr_array[j]->uop.readyAt = orcs_engine.get_global_cycle();
 				rob_line->reg_deps_ptr_array[j] = NULL;
 			}
 			/// All the dependencies are solved
@@ -2648,9 +2624,9 @@ void processor_t::statistics(){
 		utils_t::largestSeparator(output);
 		fprintf(output, "Instruction_Per_Cycle: %1.6lf\n", (float)this->fetchCounter/this->get_ended_cycle());
 		// accessing LLC cache level
-		int32_t *cache_indexes = new int32_t[3]();
+		int32_t *cache_indexes = new int32_t[CACHE_LEVELS]();
 		orcs_engine.cacheManager->generateIndexArray(this->processor_id, cache_indexes);
-		fprintf(output, "MPKI: %lf\n", (float)orcs_engine.cacheManager->data_cache[2][cache_indexes[2]].get_cache_miss()/((float)this->fetchCounter/1000));
+		fprintf(output, "MPKI: %lf\n", (float)orcs_engine.cacheManager->data_cache[CACHE_LEVELS-1][cache_indexes[CACHE_LEVELS-1]].get_cache_miss()/((float)this->fetchCounter/1000));
 		fprintf(output, "Average_wait_cycles_wait_mem_req: %lf\n", (float)this->mem_req_wait_cycles/this->get_stat_inst_load_completed());
 		fprintf(output, "Core_Request_RAM_AVG_Cycle: %lf\n", (float)this->core_ram_request_wait_cycles/this->get_core_ram_requests());
 		fprintf(output, "Total Load Requests: %lu\n", this->get_stat_inst_load_completed());
