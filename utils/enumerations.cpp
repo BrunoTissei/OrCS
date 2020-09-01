@@ -74,10 +74,10 @@ const char *get_enum_processor_stage_char(processor_stage_t type) {
 /// Enumerates the MEMORY OPERATION OF MOB,debug only
 const char *get_enum_memory_operation_char(memory_operation_t type) {
     switch (type) {
-        case MEMORY_OPERATION_READ:     return "READ"; break;
+        case MEMORY_OPERATION_READ:     return "READ "; break;
         case MEMORY_OPERATION_WRITE:    return "WRITE"; break;
         case MEMORY_OPERATION_FREE:    return "FREE"; break;
-        case MEMORY_OPERATION_INST:     return "INST"; break;
+        case MEMORY_OPERATION_INST:     return "INST "; break;
         case MEMORY_OPERATION_HIVE_UNLOCK:  return "HIVE_UNLOCK"; break;
         case MEMORY_OPERATION_HIVE_LOCK:    return "HIVE_LOCK"; break;
         case MEMORY_OPERATION_HIVE_LOAD:    return "HIVE_LOAD"; break;
@@ -122,14 +122,24 @@ const char *get_enum_package_state_char(package_state_t type) {
 /// Enumerates the cache level, 
 const char *get_enum_cache_level_char(cacheLevel_t type) {
     switch (type) {
-        case  INST_CACHE:     return "INST_CACHE"; break;
-        case L1:     return "L1_DATA_CACHE"; break;
-        case L2:     return "L2_UNIFIED_CACHE"; break;
+        case END:     return "END"; break;
+        case L1:     return "L1"; break;
+        case L2:     return "L2"; break;
         case LLC:     return "LLC"; break;
     }
     ERROR_PRINTF("Wrong CACHE_LEVEL\n");
     return "FAIL";
 } 
+
+const char *get_enum_cache_type_char(cacheId_t type) {
+    switch (type) {
+        case DATA:     return "DATA"; break;
+        case INSTRUCTION:     return "INSTRUCTION"; break;
+    }
+    ERROR_PRINTF("Wrong CACHE_LEVEL\n");
+    return "FAIL";
+} 
+
 const char *get_enum_status_stride_prefetcher_char(status_stride_prefetcher_t type) {
     switch (type) {
         case  INVALID:     return "INVALID"; break;
