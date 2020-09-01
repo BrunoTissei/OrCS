@@ -286,7 +286,7 @@ bool trace_reader_t::trace_string_to_opcode(char *input_string, opcode_package_t
     if (inst_id.find(op_asm) != inst_id.end()) {
         opcode->instruction_id = inst_id[op_asm];
     } else {
-        opcode->instruction_id = 0;
+        opcode->instruction_id = inst_id.size() - 1; // TODO: improve
     }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
@@ -498,7 +498,7 @@ bool trace_reader_t::pin_next(opcode_package_t *m) {
     if (inst_id.find(op_asm) != inst_id.end()) {
         m->instruction_id = inst_id[op_asm];
     } else {
-        m->instruction_id = 0;
+        m->instruction_id = inst_id.size() - 1; // TODO: improve
     }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
