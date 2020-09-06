@@ -311,14 +311,13 @@ int main(int argc, char **argv) {
         }
     }
     orcs_engine.memory_controller->statistics();    
-    orcs_engine.vima_controller->statistics();
+    if (orcs_engine.processor->get_HAS_HIVE()) orcs_engine.hive_controller->statistics();
+    if (orcs_engine.processor->get_HAS_VIMA()) orcs_engine.vima_controller->statistics();
     // *****************************************************************************************
 
     ORCS_PRINTF("Deleting Trace Reader\n")
     delete[] orcs_engine.trace_reader;
     delete orcs_engine.configuration;
-    ORCS_PRINTF("Deleting Memory Controller\n")
-    delete orcs_engine.memory_controller;
     ORCS_PRINTF("Deleting Branch predictor\n")
     delete[] orcs_engine.branchPredictor;
     ORCS_PRINTF("Deleting Cache manager\n")
@@ -327,6 +326,8 @@ int main(int argc, char **argv) {
     delete orcs_engine.hive_controller;
     ORCS_PRINTF ("Deleting VIMA Controller\n")
     delete orcs_engine.vima_controller;
+    ORCS_PRINTF("Deleting Memory Controller\n")
+    delete orcs_engine.memory_controller;
     ORCS_PRINTF("Deleting Processor\n")
     delete[] orcs_engine.processor;
 }

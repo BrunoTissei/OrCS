@@ -313,9 +313,10 @@ void processor_t::allocate() {
 	
 	// Processor defaults
 	libconfig::Setting &cfg_processor = cfg_root["PROCESSOR"][0];
-	libconfig::Setting &cfg_vima = cfg_root["VIMA_CONTROLLER"];
-
+	
 	if (cfg_root.exists("VIMA_CONTROLLER")) {
+		libconfig::Setting &cfg_vima = cfg_root["VIMA_CONTROLLER"];
+
 		set_HAS_VIMA (1);
 		set_MOB_VIMA (cfg_processor["MOB_VIMA"]);
 		ORCS_PRINTF ("MOB_VIMA = %u\n", get_MOB_VIMA())
@@ -924,12 +925,11 @@ void processor_t::fetch(){
 			request->type = INSTRUCTION;
 			request->op_count[request->memory_operation]++;
 
+			#if MEMORY_DEBUG
+				ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
+			#endif
+
 			if (!orcs_engine.cacheManager->searchData(request)) delete request;
-			else {
-				#if MEMORY_DEBUG
-					ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
-				#endif
-			}
 		}
 	}
 }
@@ -2195,14 +2195,16 @@ uint32_t processor_t::mob_read(){
 		request->processor_id = this->processor_id;
 		request->op_count[request->memory_operation]++;
 		request->clients.shrink_to_fit();
+
+		#if MEMORY_DEBUG
+			ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
+		#endif
 	
 		if (orcs_engine.cacheManager->searchData(request)){
 			this->oldest_read_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
 			this->oldest_read_to_send->sent=true;
 			this->oldest_read_to_send->rob_ptr->sent=true;								///Setting flag which marks sent request. set to remove entry on mob at commit
-			#if MEMORY_DEBUG
-				ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
-			#endif
+			
 		} else {
 			this->add_times_reach_parallel_requests_read();
 			delete request;
@@ -2270,8 +2272,8 @@ uint32_t processor_t::mob_hive(){
 	if(this->oldest_hive_to_send==NULL)	this->oldest_hive_to_send = this->get_next_op_hive();
 	
 	if (this->oldest_hive_to_send != NULL && !this->oldest_hive_to_send->sent){
-		if (orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_READ)) return OK;
-			
+		if (!orcs_engine.cacheManager->available (this->processor_id, MEMORY_OPERATION_READ)) return OK;
+		
 		memory_package_t* request = new memory_package_t();
 			
 		request->clients.push_back (oldest_hive_to_send);
@@ -2294,13 +2296,14 @@ uint32_t processor_t::mob_hive(){
 		request->op_count[request->memory_operation]++;
 		request->clients.shrink_to_fit();
 
+		#if MEMORY_DEBUG
+			ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
+		#endif
+		
 		if (orcs_engine.cacheManager->searchData(request)){
 			this->oldest_hive_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
 			this->oldest_hive_to_send->sent=true;
 			this->oldest_hive_to_send->rob_ptr->sent=true;								///Setting flag which marks sent request. set to remove entry on mob at commit
-			#if MEMORY_DEBUG
-				ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
-			#endif
 		} else delete request;
 		this->oldest_hive_to_send = NULL;
 	}
@@ -2336,13 +2339,14 @@ uint32_t processor_t::mob_vima(){
 		request->op_count[request->memory_operation]++;
 		request->clients.shrink_to_fit();
 
+		#if MEMORY_DEBUG
+			ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
+		#endif
+
 		if (orcs_engine.cacheManager->searchData(request)){
 			this->oldest_vima_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
 			this->oldest_vima_to_send->sent=true;
 			this->oldest_vima_to_send->rob_ptr->sent=true;								///Setting flag which marks sent request. set to remove entry on mob at commit
-			#if MEMORY_DEBUG
-				ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
-			#endif
 		} else delete request;
 		this->oldest_vima_to_send = NULL;
 	}
@@ -2390,6 +2394,10 @@ uint32_t processor_t::mob_write(){
 		request->processor_id = this->processor_id;
 		request->op_count[request->memory_operation]++;
 
+		#if MEMORY_DEBUG
+			ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
+		#endif
+
 		if (orcs_engine.cacheManager->searchData(request)){
 			this->oldest_write_to_send->cycle_send_request = orcs_engine.get_global_cycle(); //Cycle which sent request to memory system
 			this->oldest_write_to_send->sent=true;
@@ -2404,9 +2412,6 @@ uint32_t processor_t::mob_write(){
 				this->disambiguator->solve_memory_dependences(this->oldest_write_to_send);
 			}
 			this->remove_front_mob_write();
-			#if MEMORY_DEBUG
-				ORCS_PRINTF ("[PROC] %lu %lu %s sent to memory.\n", orcs_engine.get_global_cycle(), request->memory_address , get_enum_memory_operation_char (request->memory_operation))
-			#endif
 		} else {
 			this->add_times_reach_parallel_requests_write();
 			delete request;
