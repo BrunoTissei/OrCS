@@ -13,14 +13,17 @@ void instruction_set_t::allocate() {
 
     // Parse functional units
     uint32_t num_fu = cfg_fu.getLength();
-    fu_size.resize(num_fu);
+    functional_units.resize(num_fu);
 
     for (uint32_t i = 0; i < num_fu; ++i) {
         uint32_t size = cfg_fu[i]["SIZE"];
+        // uint32_t wait_next = cfg_fu[i]["WAIT_NEXT"];
+        uint32_t wait_next = 0;
+
         std::string name = cfg_fu[i]["NAME"];
 
         fu_id[name] = i;
-        fu_size[i] = size;
+        functional_units[i] = {size, wait_next};
     }
     
     // Parse uops
@@ -30,11 +33,10 @@ void instruction_set_t::allocate() {
     for (uint32_t i = 0; i < num_uops; ++i) {
         std::string name = cfg_uops[i]["NAME"];
         uint32_t lat = cfg_uops[i]["LATENCY"];
-        uint32_t tp  = cfg_uops[i]["THROUGHPUT"];
         std::string fu_name  = cfg_uops[i]["FU"];
 
         uops_id[name] = i;
-        uops[i] = uop_info_t{lat, tp, fu_id[fu_name]};
+        uops[i] = uop_info_t{lat, fu_id[fu_name]};
     }
 
     // Parse instructions

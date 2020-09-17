@@ -589,22 +589,26 @@ void processor_t::allocate() {
     uint32_t fu_cnt = 0;
 
 	// Alocate functional units
-    int num_fus = orcs_engine.instruction_set->fu_size.size();
+    int num_fus = orcs_engine.instruction_set->functional_units.size();
     this->functional_units.resize(num_fus);
 
     for (int i = 0; i < num_fus; ++i) {
-        this->functional_units[i].allocate(fu_cnt++, orcs_engine.instruction_set->fu_size[i]);
+        this->functional_units[i].allocate(
+                fu_cnt++,
+                orcs_engine.instruction_set->functional_units[i].size,
+                orcs_engine.instruction_set->functional_units[i].wait_next
+        );
     }
 
 	// Allocate memory functional units 
-	this->fu_mem_load.allocate(fu_cnt++, LOAD_UNIT);
-	this->fu_mem_store.allocate(fu_cnt++, STORE_UNIT);
+	this->fu_mem_load.allocate(fu_cnt++, LOAD_UNIT, WAIT_NEXT_MEM_LOAD);
+	this->fu_mem_store.allocate(fu_cnt++, STORE_UNIT, WAIT_NEXT_MEM_STORE);
 
 	if (get_HAS_HIVE()) 
-        this->fu_mem_hive.allocate(fu_cnt++, HIVE_UNIT);
+        this->fu_mem_hive.allocate(fu_cnt++, HIVE_UNIT, WAIT_NEXT_MEM_HIVE);
 
 	if (get_HAS_VIMA()) 
-        this->fu_mem_vima.allocate(fu_cnt++, VIMA_UNIT);
+        this->fu_mem_vima.allocate(fu_cnt++, VIMA_UNIT, WAIT_NEXT_MEM_VIMA);
 
 	// reserving space to uops on UFs pipeline, waitng to executing ends
 	this->unified_reservation_station.reserve(ROB_SIZE);
@@ -1233,7 +1237,9 @@ void processor_t::decode(){
                 new_uop.opcode_to_uop(this->uopCounter++,
                     this->fetchBuffer.front()->opcode_operation,
                     0, 0, 
-                    uop.latency, uop.throughput, &(this->functional_units[uop.fu_id]),
+                    uop.latency, 
+                    this->functional_units[uop.fu_id].wait_next, 
+                    &(this->functional_units[uop.fu_id]),
                     *this->fetchBuffer.front());
 
                 if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2) {
@@ -1830,7 +1836,7 @@ void processor_t::dispatch(){
                 {
                     if (fu->slot[k] <= orcs_engine.get_global_cycle())
                     {
-                        fu->slot[k] = orcs_engine.get_global_cycle() + uop->throughput; 
+                        fu->slot[k] = orcs_engine.get_global_cycle() + fu->wait_next;
                         fu->dispatch_cnt++;
                         dispatched = true;
                         rob_line->stage = PROCESSOR_STAGE_EXECUTION;
