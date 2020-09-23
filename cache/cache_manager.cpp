@@ -480,7 +480,7 @@ void cache_manager_t::process (memory_package_t* request, int32_t* cache_indexes
         case MEMORY_OPERATION_READ:
         case MEMORY_OPERATION_WRITE:
         case MEMORY_OPERATION_INST:
-            if (request->next_level < END){
+            if (request->next_level < DATA_LEVELS){
                 if (request->status == PACKAGE_STATE_UNTREATED && request->readyAt <= orcs_engine.get_global_cycle()){
                     if (request->memory_operation == MEMORY_OPERATION_INST && request->next_level == L1) {
                         cache = &this->instruction_cache[request->next_level][cache_indexes[request->next_level]];
@@ -489,6 +489,11 @@ void cache_manager_t::process (memory_package_t* request, int32_t* cache_indexes
                         #if MEMORY_DEBUG
                             ORCS_PRINTF (" sent to %s |", get_enum_cache_level_char ((cacheLevel_t) request->next_level))
                         #endif
+                        /*if (request->memory_operation == MEMORY_OPERATION_WRITE && request->memory_size == this->get_LINE_SIZE()){
+                            request->updatePackageWait(this->data_cache[request->next_level][cache_indexes[request->processor_id]].latency);
+                            request->sent_to_ram = true;
+                        } 
+                        else */
                         this->cache_search (request, cache, cache_indexes);
                     }
                 }
