@@ -17,8 +17,7 @@ void instruction_set_t::allocate() {
 
     for (uint32_t i = 0; i < num_fu; ++i) {
         uint32_t size = cfg_fu[i]["SIZE"];
-        // uint32_t wait_next = cfg_fu[i]["WAIT_NEXT"];
-        uint32_t wait_next = 0;
+        uint32_t wait_next = cfg_fu[i]["WAIT_NEXT"];
 
         std::string name = cfg_fu[i]["NAME"];
 
