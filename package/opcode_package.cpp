@@ -5,6 +5,7 @@
 #endif
 
 #include <string>
+
 // =====================================================================
 opcode_package_t::opcode_package_t() {
 
@@ -18,7 +19,7 @@ opcode_package_t::opcode_package_t() {
 		read_regs[i] = 0;
 		write_regs[i] = 0;
 	}
-	
+
     this->base_reg = 0;
     this->index_reg = 0;
 
@@ -48,12 +49,13 @@ opcode_package_t::opcode_package_t() {
     this->readyAt = orcs_engine.get_global_cycle();
     #else
     this->readyAt = 0;
-    #endif  
+    #endif
 }
 
 opcode_package_t::~opcode_package_t() {
-    
+
 }
+
 #ifndef __PIN__
 // =============================================================================
 void opcode_package_t::package_clean() {
@@ -87,7 +89,7 @@ void opcode_package_t::package_clean() {
     this->hive_read1 = 0;
     this->hive_read2 = 0;
     this->hive_write = 0;
-    
+
     //====Control
     this->readyAt = 0;
     this->status = PACKAGE_STATE_FREE;
@@ -129,6 +131,7 @@ std::string opcode_package_t::content_to_string() {
 
     return content_string;
 }
+
 std::string opcode_package_t::content_to_string2() {
     std::string content_string;
     content_string = "";
@@ -138,8 +141,6 @@ std::string opcode_package_t::content_to_string2() {
 
     content_string = content_string + " Status:" + get_enum_package_state_char(this->status);
     content_string = content_string + " ready At:" + utils_t::uint64_to_string(this->readyAt);
-
-
 
     return content_string;
 }

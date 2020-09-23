@@ -53,6 +53,7 @@ class opcode_package_t : public memory_request_client_t {
         
         opcode_package_t();
         ~opcode_package_t();
+
         #ifndef __PIN__
         void package_clean();
         std::string content_to_string();

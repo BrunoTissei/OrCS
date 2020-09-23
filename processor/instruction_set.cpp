@@ -30,8 +30,9 @@ void instruction_set_t::allocate() {
     uops.resize(num_uops);
 
     for (uint32_t i = 0; i < num_uops; ++i) {
-        std::string name = cfg_uops[i]["NAME"];
         uint32_t lat = cfg_uops[i]["LATENCY"];
+
+        std::string name = cfg_uops[i]["NAME"];
         std::string fu_name  = cfg_uops[i]["FU"];
 
         uops_id[name] = i;

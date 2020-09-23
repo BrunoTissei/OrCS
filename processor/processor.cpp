@@ -621,10 +621,12 @@ void processor_t::allocate() {
     this->total_operations = new uint64_t[INSTRUCTION_OPERATION_LAST]();
     this->min_wait_operations = new uint64_t[INSTRUCTION_OPERATION_LAST]();
     this->max_wait_operations = new uint64_t[INSTRUCTION_OPERATION_LAST]();
+
 	for (int i = 0; i < INSTRUCTION_OPERATION_LAST; i++){
 		this->min_wait_operations[i] = UINT64_MAX;
     	this->max_wait_operations[i] = 0;
 	}
+
     this->wait_time = 0;
 }
 // =====================================================================
@@ -905,7 +907,7 @@ void processor_t::fetch(){
 				break;
 			}
 
-			#if PROCESSOR_DEBUG 
+			#if PROCESSOR_DEBUG
 				ORCS_PRINTF("%lu processor %lu fetch(): opcode %lu %s, readyAt %u, fetchBuffer: %u, decodeBuffer: %u, robUsed: %u.\n",
                         orcs_engine.get_global_cycle(),
                         this->processor_id,
@@ -979,135 +981,177 @@ void processor_t::decode(){
 
 	uop_package_t new_uop;
 	int32_t statusInsert = POSITION_FAIL;
+
 	for (size_t i = 0; i < DECODE_WIDTH; i++)
 	{
-		if (this->fetchBuffer.is_empty() ||
-			this->fetchBuffer.front()->status != PACKAGE_STATE_READY ||
-			this->fetchBuffer.front()->readyAt > orcs_engine.get_global_cycle())
-		{
-			//if (!this->fetchBuffer.is_empty()) ORCS_PRINTF ("NOT READY %s %u %lu\n", get_enum_package_state_char (this->fetchBuffer.front()->status), this->fetchBuffer.front()->readyAt, orcs_engine.get_global_cycle())
+        if (this->fetchBuffer.is_empty())
+            break;
+
+        opcode_package_t *instr = this->fetchBuffer.front();
+        instruction_set_t *instr_set = orcs_engine.instruction_set;
+        instruction_operation_t instr_op = instr->opcode_operation;
+
+
+        // First instruction must be ready
+		if (instr->status != PACKAGE_STATE_READY || instr->readyAt > orcs_engine.get_global_cycle())
 			break;
-		}
-		if (this->decodeBuffer.get_capacity() - this->decodeBuffer.get_size() < MAX_UOP_DECODED)
+
+        uint32_t num_uops = 0;
+
+        if ((get_HAS_HIVE() && instr->is_hive) || 
+            (get_HAS_VIMA() && instr->is_vima))
+            num_uops += 1;
+        else {
+            num_uops += instr->is_read + instr->is_read2 + instr->is_write;
+            num_uops += (instr_op == INSTRUCTION_OPERATION_BRANCH);
+
+            if (instr_op != INSTRUCTION_OPERATION_BRANCH &&
+                instr_op != INSTRUCTION_OPERATION_MEM_LOAD &&
+                instr_op != INSTRUCTION_OPERATION_MEM_STORE)
+                num_uops += instr_set->uops_per_instruction[instr->instruction_id].size();
+        }
+
+
+        // Make sure there's enough space in decodeBuffer
+		if (this->decodeBuffer.get_capacity() - this->decodeBuffer.get_size() < num_uops)
 		{
 			this->add_stall_full_DecodeBuffer();
-			//ORCS_PRINTF ("DECODE FULL %s %s %u %lu\n", get_enum_package_state_char (this->fetchBuffer.front()->status), get_enum_instruction_operation_char (this->fetchBuffer.front()->opcode_operation), this->fetchBuffer.front()->readyAt, orcs_engine.get_global_cycle())
 			break;
 		}
-		ERROR_ASSERT_PRINTF(this->decodeCounter == this->fetchBuffer.front()->opcode_number, "Trying decode out-of-order");
+
+
+		ERROR_ASSERT_PRINTF(this->decodeCounter == instr->opcode_number,
+                "Trying decode out-of-order");
+
 		this->decodeCounter++;
 
-		//HIVE
-		if (get_HAS_HIVE()){
-			if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_FP_ALU ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_FP_DIV ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_FP_MUL ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_INT_ALU ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_INT_DIV ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_INT_MUL ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_LOCK ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_UNLOCK){
+		// HIVE
+		if (get_HAS_HIVE())
+        {
+			if (instr_op == INSTRUCTION_OPERATION_HIVE_FP_ALU ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_FP_DIV ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_FP_MUL ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_INT_ALU ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_INT_DIV ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_INT_MUL ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_LOCK ||
+                instr_op == INSTRUCTION_OPERATION_HIVE_UNLOCK)
+            {
 				new_uop.package_clean();
-				new_uop.opcode_to_uop (this->uopCounter++,
-										this->fetchBuffer.front()->opcode_operation,
-										0,
-										1,
-                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
-										*this->fetchBuffer.front());
+				new_uop.opcode_to_uop(this->uopCounter++,
+                        instr_op,
+                        0,
+						1,
+                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
+                        *instr);
 
 				new_uop.is_hive = true;
 				new_uop.is_vima = false;
-				new_uop.hive_read1 = this->fetchBuffer.front()->hive_read1;
-				new_uop.hive_read2 = this->fetchBuffer.front()->hive_read2;
-				new_uop.hive_write = this->fetchBuffer.front()->hive_write;
+				new_uop.hive_read1 = instr->hive_read1;
+				new_uop.hive_read2 = instr->hive_read2;
+				new_uop.hive_write = instr->hive_write;
 
-				new_uop.updatePackageWait (DECODE_LATENCY);
+				new_uop.updatePackageWait(DECODE_LATENCY);
 				new_uop.born_cycle = orcs_engine.get_global_cycle();
 				this->total_operations[new_uop.opcode_operation]++;
 				statusInsert = this->decodeBuffer.push_back(new_uop);
+
 				#if DECODE_DEBUG
 					ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 				#endif
-				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+
+				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                        "Erro, Tentando decodificar mais uops que o maximo permitido");
+
 				this->fetchBuffer.pop_front();
 				return;
-			} else if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_LOAD){
+			} else if (instr_op == INSTRUCTION_OPERATION_HIVE_LOAD){
 				new_uop.package_clean();
-				new_uop.opcode_to_uop (this->uopCounter++,
-										this->fetchBuffer.front()->opcode_operation,
-										this->fetchBuffer.front()->read_address,
-										this->fetchBuffer.front()->read_size,
-                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
-										*this->fetchBuffer.front());
+				new_uop.opcode_to_uop(this->uopCounter++,
+                        instr_op,
+                        instr->read_address,
+                        instr->read_size,
+                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
+                        *instr);
 
 				new_uop.is_hive = true;
 				new_uop.is_vima = false;
-				new_uop.hive_read1 = this->fetchBuffer.front()->hive_read1;
-				new_uop.read_address = this->fetchBuffer.front()->read_address;
-				new_uop.hive_read2 = this->fetchBuffer.front()->hive_read2;
-				new_uop.read2_address = this->fetchBuffer.front()->read2_address;
-				new_uop.hive_write = this->fetchBuffer.front()->hive_write;
-				new_uop.write_address = this->fetchBuffer.front()->write_address;
+				new_uop.hive_read1    = instr->hive_read1;
+				new_uop.read_address  = instr->read_address;
+				new_uop.hive_read2    = instr->hive_read2;
+				new_uop.read2_address = instr->read2_address;
+				new_uop.hive_write    = instr->hive_write;
+				new_uop.write_address = instr->write_address;
 
-				new_uop.updatePackageWait (DECODE_LATENCY);
+				new_uop.updatePackageWait(DECODE_LATENCY);
 				new_uop.born_cycle = orcs_engine.get_global_cycle();
 				this->total_operations[new_uop.opcode_operation]++;
 				statusInsert = this->decodeBuffer.push_back(new_uop);
+
 				#if DECODE_DEBUG
 					ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 				#endif
-				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+
+				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                        "Erro, Tentando decodificar mais uops que o maximo permitido");
+
 				this->fetchBuffer.pop_front();
 				return;
-			} else if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_HIVE_STORE){
+			} else if (instr_op == INSTRUCTION_OPERATION_HIVE_STORE){
 				new_uop.package_clean();
-				new_uop.opcode_to_uop (this->uopCounter++,
-										this->fetchBuffer.front()->opcode_operation,
-										this->fetchBuffer.front()->write_address,
-										this->fetchBuffer.front()->write_size,
-                                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
-										*this->fetchBuffer.front());
+				new_uop.opcode_to_uop(this->uopCounter++,
+                        instr_op,
+                        instr->write_address,
+                        instr->write_size,
+                        this->LATENCY_MEM_HIVE, this->WAIT_NEXT_MEM_HIVE, &(this->fu_mem_hive),
+                        *instr);
 
 				new_uop.is_hive = true;
 				new_uop.is_vima = false;
-				new_uop.hive_read1 = this->fetchBuffer.front()->hive_read1;
-				new_uop.read_address = this->fetchBuffer.front()->read_address;
-				new_uop.hive_read2 = this->fetchBuffer.front()->hive_read2;
-				new_uop.read2_address = this->fetchBuffer.front()->read2_address;
-				new_uop.hive_write = this->fetchBuffer.front()->hive_write;
-				new_uop.write_address = this->fetchBuffer.front()->write_address;
+				new_uop.hive_read1    = instr->hive_read1;
+				new_uop.read_address  = instr->read_address;
+				new_uop.hive_read2    = instr->hive_read2;
+				new_uop.read2_address = instr->read2_address;
+				new_uop.hive_write    = instr->hive_write;
+				new_uop.write_address = instr->write_address;
 
 				new_uop.updatePackageWait (DECODE_LATENCY);
 				new_uop.born_cycle = orcs_engine.get_global_cycle();
 				this->total_operations[new_uop.opcode_operation]++;
 				statusInsert = this->decodeBuffer.push_back(new_uop);
+
 				#if DECODE_DEBUG
 					ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 				#endif
-				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+
+				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                        "Erro, Tentando decodificar mais uops que o maximo permitido");
+
 				this->fetchBuffer.pop_front();
 				return;
 			}
 		}
 
 
-		//VIMA
-		if (get_HAS_VIMA()){
-			if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_FP_ALU ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_FP_DIV ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_FP_MUL ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_INT_ALU ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_INT_DIV ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_INT_MUL ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_INT_MLA ||
-			this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_VIMA_FP_MLA){
+		// VIMA
+		if (get_HAS_VIMA())
+        {
+			if (instr_op == INSTRUCTION_OPERATION_VIMA_FP_ALU ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_FP_DIV ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_FP_MUL ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_INT_ALU ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_INT_DIV ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_INT_MUL ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_INT_MLA ||
+                instr_op == INSTRUCTION_OPERATION_VIMA_FP_MLA)
+            {
 				new_uop.package_clean();
-				new_uop.opcode_to_uop (this->uopCounter++,
-										this->fetchBuffer.front()->opcode_operation,
-										0,
-										1,
-                                        this->LATENCY_MEM_VIMA, this->WAIT_NEXT_MEM_VIMA, &(this->fu_mem_vima),
-										*this->fetchBuffer.front());
+				new_uop.opcode_to_uop(this->uopCounter++,
+                        instr_op,
+                        0,
+                        1,
+                        this->LATENCY_MEM_VIMA, this->WAIT_NEXT_MEM_VIMA, &(this->fu_mem_vima),
+                        *instr);
 
 				new_uop.is_hive = false;
 				new_uop.hive_read1 = -1;
@@ -1115,42 +1159,47 @@ void processor_t::decode(){
 				new_uop.hive_write = -1;
 
 				new_uop.is_vima = true;
-				new_uop.read_address = fetchBuffer.front()->read_address;
-				new_uop.read2_address = fetchBuffer.front()->read2_address;
-				new_uop.write_address = fetchBuffer.front()->write_address;
+				new_uop.read_address  = instr->read_address;
+				new_uop.read2_address = instr->read2_address;
+				new_uop.write_address = instr->write_address;
 
 				new_uop.updatePackageWait (DECODE_LATENCY);
 				new_uop.born_cycle = orcs_engine.get_global_cycle();
 				this->total_operations[new_uop.opcode_operation]++;
 				statusInsert = this->decodeBuffer.push_back(new_uop);
+
 				#if DECODE_DEBUG
 					ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 				#endif
+
 				#if VIMA_DEBUGG
-					ORCS_PRINTF ("%lu Processor decode(): VIMA instruction %lu decoded!\n", orcs_engine.get_global_cycle(), this->fetchBuffer.front()->opcode_number)
+					ORCS_PRINTF ("%lu Processor decode(): VIMA instruction %lu decoded!\n",
+                            orcs_engine.get_global_cycle(), this->fetchBuffer.front()->opcode_number)
 				#endif
-				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+
+				ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                        "Erro, Tentando decodificar mais uops que o maximo permitido");
+
 				this->fetchBuffer.pop_front();
 				return;
 			}
 		}
 
 		// =====================
-		//Decode Read 1
+		// Decode Read 1
 		// =====================
-		if (this->fetchBuffer.front()->is_read)
+		if (instr->is_read)
 		{
 			new_uop.package_clean();
-			//creating uop
 			new_uop.opcode_to_uop(this->uopCounter++,
-								  INSTRUCTION_OPERATION_MEM_LOAD,
-								  this->fetchBuffer.front()->read_address,
-								  this->fetchBuffer.front()->read_size,
-                                  this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
-								  *this->fetchBuffer.front());
+                    INSTRUCTION_OPERATION_MEM_LOAD,
+                    instr->read_address,
+                    instr->read_size,
+                    this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
+                    *this->fetchBuffer.front());
 
-			//SE OP DIFERE DE LOAD, ZERA REGISTERS
-			if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_LOAD)
+            // If op is not load, clear registers
+			if (instr_op != INSTRUCTION_OPERATION_MEM_LOAD)
 			{
 				// ===== Read Regs =============================================
 				/// Clear RRegs
@@ -1158,9 +1207,10 @@ void processor_t::decode(){
 				{
                     new_uop.read_regs[i] = POSITION_FAIL;
 				}
+
 				/// Insert BASE and INDEX into RReg
-				new_uop.read_regs[0] = this->fetchBuffer.front()->base_reg;
-				new_uop.read_regs[1] = this->fetchBuffer.front()->index_reg;
+				new_uop.read_regs[0] = instr->base_reg;
+				new_uop.read_regs[1] = instr->index_reg;
 
 				// ===== Write Regs =============================================
 				/// Clear WRegs
@@ -1168,6 +1218,7 @@ void processor_t::decode(){
 				{
 					new_uop.write_regs[i] = POSITION_FAIL;
 				}
+
 				/// Insert 258 into WRegs
 				new_uop.write_regs[0] = 258;
 			}
@@ -1181,24 +1232,25 @@ void processor_t::decode(){
 				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 			#endif
 
-			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                    "Erro, Tentando decodificar mais uops que o maximo permitido");
 		}
 
 		// =====================
-		//Decode Read 2
+		// Decode Read 2
 		// =====================
-		if (this->fetchBuffer.front()->is_read2)
+		if (instr->is_read2)
 		{
 			new_uop.package_clean();
-			//creating uop
 			new_uop.opcode_to_uop(this->uopCounter++,
-								  INSTRUCTION_OPERATION_MEM_LOAD,
-								  this->fetchBuffer.front()->read2_address,
-								  this->fetchBuffer.front()->read2_size,
-                                  this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
-								  *this->fetchBuffer.front());
-			//SE OP DIFERE DE LOAD, ZERA REGISTERS
-			if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_LOAD)
+                    INSTRUCTION_OPERATION_MEM_LOAD,
+                    instr->read2_address,
+                    instr->read2_size,
+                    this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
+                    *instr);
+
+            // If op is not load, clear registers
+			if (instr_op != INSTRUCTION_OPERATION_MEM_LOAD)
 			{
 				// ===== Read Regs =============================================
 				/// Clear RRegs
@@ -1206,9 +1258,10 @@ void processor_t::decode(){
 				{
 					new_uop.read_regs[i] = POSITION_FAIL;
 				}
+
 				/// Insert BASE and INDEX into RReg
-				new_uop.read_regs[0] = this->fetchBuffer.front()->base_reg;
-				new_uop.read_regs[1] = this->fetchBuffer.front()->index_reg;
+				new_uop.read_regs[0] = instr->base_reg;
+				new_uop.read_regs[1] = instr->index_reg;
 
 				// ===== Write Regs =============================================
 				/// Clear WRegs
@@ -1216,12 +1269,12 @@ void processor_t::decode(){
 				{
 					new_uop.write_regs[i] = POSITION_FAIL;
 				}
+
 				/// Insert 258 into WRegs
 				new_uop.write_regs[0] = 258;
 			}
 
 			new_uop.updatePackageWait(DECODE_LATENCY);
-			// printf("\n UOP Created %s \n",new_uop.content_to_string().c_str());
 			new_uop.born_cycle = orcs_engine.get_global_cycle();
 			this->total_operations[new_uop.opcode_operation]++;
 			statusInsert = this->decodeBuffer.push_back(new_uop);
@@ -1230,36 +1283,36 @@ void processor_t::decode(){
 				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 			#endif
 
-			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                    "Erro, Tentando decodificar mais uops que o maximo permitido");
 		}
 
 		// =====================
-		//Decode ALU Operation
+		// Decode ALU Operation
 		// =====================
-		if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_BRANCH &&
-			this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_LOAD &&
-			this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_STORE)
+		if (instr_op != INSTRUCTION_OPERATION_BRANCH &&
+			instr_op != INSTRUCTION_OPERATION_MEM_LOAD &&
+			instr_op != INSTRUCTION_OPERATION_MEM_STORE)
 		{
-            uint32_t inst_id = this->fetchBuffer.front()->instruction_id;
-
-            instruction_set_t *iset = orcs_engine.instruction_set;
-            std::vector<uint32_t> &uops = iset->uops_per_instruction[inst_id];
+            uint32_t instr_id = instr->instruction_id;
+            std::vector<uint32_t> &uops = instr_set->uops_per_instruction[instr_id];
 
             // Iterate over uops from instruction
-            for (uint32_t uop_idx : uops) {
-                uop_info_t uop = iset->uops[uop_idx];
+            for (uint32_t uop_idx : uops)
+            {
+                uop_info_t uop = instr_set->uops[uop_idx];
 
                 new_uop.package_clean();
                 new_uop.opcode_to_uop(this->uopCounter++,
-                    this->fetchBuffer.front()->opcode_operation,
+                    instr_op,
                     0, 0,
                     uop.latency,
                     this->functional_units[uop.fu_id].wait_next,
                     &(this->functional_units[uop.fu_id]),
-                    *this->fetchBuffer.front());
+                    *instr);
 
-                if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2) {
-
+                if (instr->is_read || instr->is_read2)
+                {
                     // ===== Read Regs =============================================
                     //registers /258 aux onde pos[i] = fail
                     bool inserted_258 = false;
@@ -1271,11 +1324,13 @@ void processor_t::decode(){
                         }
                     }
 
-                    ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS);
+                    ERROR_ASSERT_PRINTF(inserted_258,
+                            "Could not insert register_258, all MAX_REGISTERS(%d) used.\n",
+                            MAX_REGISTERS);
                 }
 
-                if (this->fetchBuffer.front()->is_write) {
-
+                if (instr->is_write)
+                {
                     // ===== Write Regs =============================================
                     //registers /258 aux onde pos[i] = fail
                     bool inserted_258 = false;
@@ -1287,35 +1342,38 @@ void processor_t::decode(){
                         }
                     }
 
-                    ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.\n", MAX_REGISTERS);
+                    ERROR_ASSERT_PRINTF(inserted_258,
+                            "Could not insert register_258, all MAX_REGISTERS(%d) used.\n",
+                            MAX_REGISTERS);
                 }
 
                 new_uop.updatePackageWait(DECODE_LATENCY);
-			    new_uop.born_cycle = orcs_engine.get_global_cycle();
-    			this->total_operations[new_uop.opcode_operation]++;
+                new_uop.born_cycle = orcs_engine.get_global_cycle();
+                this->total_operations[new_uop.opcode_operation]++;
                 statusInsert = this->decodeBuffer.push_back(new_uop);
 
-			    #if DECODE_DEBUG
-				    ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
-    			#endif
+                #if DECODE_DEBUG
+                    ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
+                #endif
 
-                ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido");
+                ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                        "Erro, Tentando decodificar mais uops que o maximo permitido");
             }
 		}
 
 		// =====================
 		//Decode Branch
 		// =====================
-		if (this->fetchBuffer.front()->opcode_operation == INSTRUCTION_OPERATION_BRANCH)
+		if (instr_op == INSTRUCTION_OPERATION_BRANCH)
 		{
 			new_uop.package_clean();
 			new_uop.opcode_to_uop(this->uopCounter++,
-								  INSTRUCTION_OPERATION_BRANCH,
-								  0,
-								  0,
-                                  this->LATENCY_INTEGER_ALU, this->WAIT_NEXT_INT_ALU, &(this->functional_units[0]),
-								  *this->fetchBuffer.front());
-			if (this->fetchBuffer.front()->is_read || this->fetchBuffer.front()->is_read2)
+                    INSTRUCTION_OPERATION_BRANCH,
+                    0, 0,
+                    this->LATENCY_INTEGER_ALU, this->WAIT_NEXT_INT_ALU, &(this->functional_units[0]),
+                    *instr);
+
+			if (instr->is_read || instr->is_read2)
 			{
 				// ===== Read Regs =============================================
 				/// Insert Reg258 into RReg
@@ -1329,9 +1387,12 @@ void processor_t::decode(){
 						break;
 					}
 				}
-				ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.", MAX_REGISTERS)
+
+				ERROR_ASSERT_PRINTF(inserted_258,
+                        "Could not insert register_258, all MAX_REGISTERS(%d) used.", MAX_REGISTERS);
 			}
-			if (this->fetchBuffer.front()->is_write)
+
+			if (instr->is_write)
 			{
 				// ===== Write Regs =============================================
 				//registers /258 aux onde pos[i] = fail
@@ -1345,7 +1406,9 @@ void processor_t::decode(){
 						break;
 					}
 				}
-				ERROR_ASSERT_PRINTF(inserted_258, "Todos Max regs usados. %u \n", MAX_REGISTERS)
+
+				ERROR_ASSERT_PRINTF(inserted_258,
+                        "Todos Max regs usados. %u \n", MAX_REGISTERS);
 			}
 
 			new_uop.updatePackageWait(DECODE_LATENCY);
@@ -1357,24 +1420,26 @@ void processor_t::decode(){
 				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 			#endif
 
-			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                    "Erro, Tentando decodificar mais uops que o maximo permitido")
 		}
 
 		// =====================
 		//Decode Write
 		// =====================
-		if (this->fetchBuffer.front()->is_write)
+		if (instr->is_write)
 		{
 			new_uop.package_clean();
-			// make package
 			new_uop.opcode_to_uop(this->uopCounter++,
-								  INSTRUCTION_OPERATION_MEM_STORE,
-								  this->fetchBuffer.front()->write_address,
-								  this->fetchBuffer.front()->write_size,
-                                  this->LATENCY_MEM_STORE, this->WAIT_NEXT_MEM_STORE, &(this->fu_mem_store),
-								  *this->fetchBuffer.front());
+                    INSTRUCTION_OPERATION_MEM_STORE,
+                    instr->write_address,
+                    instr->write_size,
+                    this->LATENCY_MEM_STORE, this->WAIT_NEXT_MEM_STORE, &(this->fu_mem_store),
+                    *instr);
+
 			//
-			if (this->fetchBuffer.front()->opcode_operation != INSTRUCTION_OPERATION_MEM_STORE){
+			if (instr_op != INSTRUCTION_OPERATION_MEM_STORE)
+            {
 				bool inserted_258 = false;
 				for (uint32_t i = 0; i < MAX_REGISTERS; i++){
 					if (new_uop.read_regs[i] == POSITION_FAIL){
@@ -1383,8 +1448,10 @@ void processor_t::decode(){
 						break;
 					}
 				}
-				ERROR_ASSERT_PRINTF(inserted_258, "Could not insert register_258, all MAX_REGISTERS(%d) used.", MAX_REGISTERS)
-				// assert(!inserted_258 && "Max registers used");
+
+				ERROR_ASSERT_PRINTF(inserted_258,
+                        "Could not insert register_258, all MAX_REGISTERS(%d) used.", MAX_REGISTERS)
+
 				// ===== Write Regs =============================================
 				/// Clear WRegs
 				for (uint32_t i = 0; i < MAX_REGISTERS; i++)
@@ -1394,7 +1461,6 @@ void processor_t::decode(){
 			}
 
 			new_uop.updatePackageWait(DECODE_LATENCY);
-			// printf("\n UOP Created %s \n",new_uop.content_to_string().c_str());
 			new_uop.born_cycle = orcs_engine.get_global_cycle();
 			this->total_operations[new_uop.opcode_operation]++;
 			statusInsert = this->decodeBuffer.push_back(new_uop);
@@ -1403,7 +1469,8 @@ void processor_t::decode(){
 				ORCS_PRINTF("uop created %s\n", this->decodeBuffer.back()->content_to_string2().c_str())
 			#endif
 
-			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL, "Erro, Tentando decodificar mais uops que o maximo permitido")
+			ERROR_ASSERT_PRINTF(statusInsert != POSITION_FAIL,
+                    "Erro, Tentando decodificar mais uops que o maximo permitido")
 		}
 
 		#if PROCESSOR_DEBUG
@@ -1417,6 +1484,7 @@ void processor_t::decode(){
                     this->decodeBuffer.get_size(),
                     this->robUsed);
 		#endif
+
 		this->fetchBuffer.pop_front();
 	}
 }
@@ -2288,7 +2356,7 @@ memory_order_buffer_line_t* processor_t::get_next_op_load() {
 			this->memory_order_buffer_read[pos].status == PACKAGE_STATE_WAIT &&
 			this->memory_order_buffer_read[pos].sent==false &&
         	this->memory_order_buffer_read[pos].wait_mem_deps_number == 0 &&
-			this->memory_order_buffer_read[pos].readyToGo <= orcs_engine.get_global_cycle()) 
+			this->memory_order_buffer_read[pos].readyToGo <= orcs_engine.get_global_cycle())
         {
 				return &this->memory_order_buffer_read[pos];
 		}
@@ -2560,7 +2628,7 @@ uint32_t processor_t::mob_write(){
 			this->oldest_write_to_send->rob_ptr->uop.updatePackageReady(COMMIT_LATENCY);
 			this->oldest_write_to_send->processed=true;
 			//ORCS_PRINTF("%lu uop: %lu | %s | %u | %u.\n",
-            //            orcs_engine.get_global_cycle(), 
+            //            orcs_engine.get_global_cycle(),
             //            this->oldest_write_to_send->rob_ptr->uop.uop_number,
             //            get_enum_processor_stage_char(this->oldest_write_to_send->rob_ptr->stage),
             //            this->counter_mshr_write,
@@ -2712,7 +2780,7 @@ void processor_t::commit(){
 
 					this->add_stat_inst_store_completed();
 					break;
-				
+
                 // BRANCHES
 				case INSTRUCTION_OPERATION_BRANCH:
 					this->add_stat_inst_branch_completed();
