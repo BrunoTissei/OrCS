@@ -657,6 +657,7 @@ int32_t processor_t::searchPositionROB(){
 	}
 	return position;
 }
+
 // ======================================
 // Remove the Head of the reorder buffer
 // The Reorder Buffer behavior is a Circular FIFO
@@ -672,6 +673,7 @@ void processor_t::removeFrontROB(){
 		this->robStart = 0;
 	}
 }
+
 // ============================================================================
 // get position on MOB read.
 // MOB read is a circular buffer
@@ -691,6 +693,7 @@ int32_t processor_t::search_position_mob_read(){
 	}
 	return position;
 }
+
 // ============================================================================
 // remove front mob read on commit
 // ============================================================================
@@ -712,6 +715,7 @@ void processor_t::remove_front_mob_read(){
 		this->memory_order_buffer_read_start = 0;
 	}
 }
+
 // ============================================================================
 // get position on MOB hive.
 // MOB read is a circular buffer
@@ -731,6 +735,7 @@ int32_t processor_t::search_position_mob_hive(){
 	}
 	return position;
 }
+
 // ============================================================================
 // get position on MOB vima.
 // ============================================================================
@@ -749,6 +754,7 @@ int32_t processor_t::search_position_mob_vima(){
 	}
 	return position;
 }
+
 // ============================================================================
 // remove front mob read on commit
 // ============================================================================
@@ -770,6 +776,7 @@ void processor_t::remove_front_mob_hive(){
 		this->memory_order_buffer_hive_start = 0;
 	}
 }
+
 // ============================================================================
 // remove front mob read on commit
 // ============================================================================
@@ -791,6 +798,7 @@ void processor_t::remove_front_mob_vima(){
 		this->memory_order_buffer_vima_start = 0;
 	}
 }
+
 // ============================================================================
 // get position on MOB write.
 // MOB read is a circular buffer
@@ -810,6 +818,7 @@ int32_t processor_t::search_position_mob_write(){
 	}
 	return position;
 }
+
 // ============================================================================
 // remove front mob read on commit
 // ============================================================================
@@ -998,7 +1007,7 @@ void processor_t::decode(){
 
         uint32_t num_uops = 0;
 
-        if ((get_HAS_HIVE() && instr->is_hive) || 
+        if ((get_HAS_HIVE() && instr->is_hive) ||
             (get_HAS_VIMA() && instr->is_vima))
             num_uops += 1;
         else {
@@ -1495,7 +1504,9 @@ void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 	for (uint32_t k = 0; k < MAX_REGISTERS; k++) {
 		if (new_rob_line->uop.read_regs[k] < 0) break;
 		uint32_t read_register = new_rob_line->uop.read_regs[k];
-		ERROR_ASSERT_PRINTF(read_register < RAT_SIZE, "Read Register (%d) > Register Alias Table Size (%d)\n", read_register, RAT_SIZE);
+		ERROR_ASSERT_PRINTF(read_register < RAT_SIZE,
+                "Read Register (%d) > Register Alias Table Size (%d)\n", read_register, RAT_SIZE);
+
 		/// If there is a dependency
 		if (this->register_alias_table[read_register] != NULL){
 			for (uint32_t j = 0; j < ROB_SIZE; j++){
@@ -1515,7 +1526,8 @@ void processor_t::update_registers(reorder_buffer_line_t *new_rob_line){
 		if (new_rob_line->uop.write_regs[k] < 0) break;
 
 		uint32_t write_register = new_rob_line->uop.write_regs[k];
-		ERROR_ASSERT_PRINTF(write_register < RAT_SIZE, "Write Register (%d) > Register Alias Table Size (%d)\n", write_register, RAT_SIZE);
+		ERROR_ASSERT_PRINTF(write_register < RAT_SIZE,
+                "Write Register (%d) > Register Alias Table Size (%d)\n", write_register, RAT_SIZE);
 
 		this->register_alias_table[write_register] = new_rob_line;
 	}
@@ -1540,13 +1552,14 @@ void processor_t::rename(){
 			break;
 		}
 
-		ERROR_ASSERT_PRINTF(this->decodeBuffer.front()->uop_number == this->renameCounter, "Erro, renomeio incorreto\n")
+		ERROR_ASSERT_PRINTF(this->decodeBuffer.front()->uop_number == this->renameCounter, "Erro, renomeio incorreto\n");
+
 		//=======================
 		// Memory Operation Read
 		//=======================
 		if (this->decodeBuffer.front()->uop_operation == INSTRUCTION_OPERATION_MEM_LOAD)
 		{
-			if (this->memory_order_buffer_read_used>=MOB_READ || this->robUsed>=ROB_SIZE)
+			if (this->memory_order_buffer_read_used >= MOB_READ || this->robUsed >= ROB_SIZE)
                 break;
 
 			pos_mob = this->search_position_mob_read();
@@ -1560,11 +1573,12 @@ void processor_t::rename(){
 			}
 
 			#if RENAME_DEBUG
-				ORCS_PRINTF("Get_Position_MOB_READ %d\n",pos_mob)
+				ORCS_PRINTF("Get_Position_MOB_READ %d\n",pos_mob);
 			#endif
 
 			mob_line = &this->memory_order_buffer_read[pos_mob];
 		}
+
 		//=======================
 		// Memory Operation Write
 		//=======================
@@ -1582,11 +1596,12 @@ void processor_t::rename(){
 			}
 
 			#if RENAME_DEBUG
-				ORCS_PRINTF("Get_Position_MOB_WRITE %d\n",pos_mob)
+				ORCS_PRINTF("Get_Position_MOB_WRITE %d\n",pos_mob);
 			#endif
 
 			mob_line = &this->memory_order_buffer_write[pos_mob];
 		}
+
 		//=======================
 		// Memory Operation HIVE
 		//=======================
@@ -1967,7 +1982,8 @@ void processor_t::dispatch(){
             }
         }
 
-        if ((uop->readyAt <= orcs_engine.get_global_cycle()) && (rob_line->wait_reg_deps_number == 0)){
+        if ((uop->readyAt <= orcs_engine.get_global_cycle()) && (rob_line->wait_reg_deps_number == 0))
+        {
             ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT,
                     "Error, uop not ready being dispatched\n %s\n",
                     rob_line->content_to_string().c_str());
@@ -2257,9 +2273,11 @@ void processor_t::execute()
 				{
 					ERROR_ASSERT_PRINTF(rob_line->mob_ptr != NULL, "Read with a NULL pointer to MOB\n%s\n",rob_line->content_to_string().c_str())
 					this->memory_read_executed++;
+
 					rob_line->mob_ptr->uop_executed = true;
 					rob_line->uop.updatePackageWait(EXECUTE_LATENCY);
 					uop_total_executed++;
+
 					/// Remove from the Functional Units
 					this->unified_functional_units.erase(this->unified_functional_units.begin() + i);
 					this->unified_functional_units.shrink_to_fit();

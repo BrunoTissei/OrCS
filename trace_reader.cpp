@@ -5,7 +5,7 @@ trace_reader_t::trace_reader_t() {
     this->line_static = NULL;
     this->line_dynamic = NULL;
     this->line_memory = NULL;
-    //Trace Files 
+    //Trace Files
     this->gzStaticTraceFile = NULL;
     this->gzDynamicTraceFile = NULL;
     this->gzMemoryTraceFile = NULL;
@@ -21,7 +21,7 @@ trace_reader_t::trace_reader_t() {
     this->binary_dict = NULL; /// Complete dictionary of BBLs and instructions
 
     this->fetch_instructions=0;
-        //get total opcodes 
+        //get total opcodes
     this->trace_opcode_max=0;
 
 }
@@ -37,7 +37,7 @@ trace_reader_t::~trace_reader_t() {
         utils_t::template_delete_array<char>(line_static);
         utils_t::template_delete_matrix<char>(line_dynamic, TRACE_LINE_SIZE);
         utils_t::template_delete_matrix<char>(line_memory, TRACE_LINE_SIZE);
-        
+
         for (uint32_t bbl = 1; bbl < this->binary_total_bbls; bbl++) delete[] binary_dict[bbl];
         delete[] binary_dict;
         delete[] binary_bbl_size;
@@ -48,7 +48,7 @@ void trace_reader_t::allocate(char *trace_file) {
     if(orcs_engine.use_pin) {
         return;
     }
-        
+
     char file_name[TRACE_LINE_SIZE];
 
     // =================================================================
@@ -85,8 +85,8 @@ void trace_reader_t::allocate(char *trace_file) {
     this->currect_bbl = 0;
     this->currect_opcode = 0;
 
- 
-    
+
+
 	/// Obtain the number of BBLs
 	this->get_total_bbls();
 
@@ -117,7 +117,7 @@ void trace_reader_t::allocate(char *trace_file) {
     this->line_static = utils_t::template_allocate_array<char>(TRACE_LINE_SIZE);
     this->line_dynamic = utils_t::template_allocate_matrix<char>(1, TRACE_LINE_SIZE);
     this->line_memory = utils_t::template_allocate_matrix<char>(1, TRACE_LINE_SIZE);
-    // ====================================================================  
+    // ====================================================================
     ///total number of opcodes
     this->trace_opcode_max=0;
     this->trace_opcode_max=this->get_trace_size();
@@ -125,7 +125,7 @@ void trace_reader_t::allocate(char *trace_file) {
     ///translation Address
     //this->address_translation =  this->get_processor_id() << 56;
     this->address_translation =  0;
-    // ====================================================================  
+    // ====================================================================
 
 }
 /// Get the total number of opcodes
@@ -207,7 +207,7 @@ void trace_reader_t::define_binary_bbl_size() {
             binary_bbl_size[bbl]++;
         }
     }
-}  
+}
 
 // =====================================================================
 void trace_reader_t::generate_binary_dict() {
@@ -356,13 +356,13 @@ bool trace_reader_t::trace_string_to_opcode(char *input_string, opcode_package_t
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     opcode->hive_read1 = atoi(&sub_string[0]);
-    
+
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     opcode->hive_read2 = atoi(&sub_string[0]);
-    
+
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     opcode->hive_write = atoi(&sub_string[0]);
-    
+
     return OK;
 }
 
@@ -456,7 +456,7 @@ bool trace_reader_t::trace_next_memory(uint64_t *mem_address, uint32_t *mem_size
             }
             ERROR_ASSERT_PRINTF(count == 3, "Error converting Text to Memory (Wrong  number of fields %d)\n", count)
             DEBUG_PRINTF("Memory trace line: %s\n", file_line);
-            
+
             sub_string = strtok_r(file_line, " ", &tmp_ptr);
             *mem_is_read = strcmp(sub_string, "R") == 0;
 
@@ -506,7 +506,7 @@ bool trace_reader_t::pin_next(opcode_package_t *m) {
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     m->opcode_operation = static_cast<instruction_operation_t> (std::strtoul(sub_string, NULL, 10));
-    
+
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
     m->opcode_address = std::strtoull(sub_string, NULL, 10);
 
@@ -634,13 +634,13 @@ bool trace_reader_t::trace_fetch(opcode_package_t *m) {
     if (m->is_read2) {
         trace_next_memory(&m->read2_address, &m->read2_size, &mem_is_read);
         m->read2_address |= this->address_translation;
-        //ORCS_PRINTF ("read2: %lu | ", m->read2_address) 
+        //ORCS_PRINTF ("read2: %lu | ", m->read2_address)
         ERROR_ASSERT_PRINTF(mem_is_read == true, "Expecting a read2 from memory trace\n");
     }
 
     if (m->is_write) {
         trace_next_memory(&m->write_address, &m->write_size, &mem_is_read);
-        m->write_address |= this->address_translation; 
+        m->write_address |= this->address_translation;
         //ORCS_PRINTF ("write: %lu | ", m->write_address)
         ERROR_ASSERT_PRINTF(mem_is_read == false, "Expecting a write from memory trace\n");
     }
@@ -655,17 +655,21 @@ bool trace_reader_t::trace_fetch(opcode_package_t *m) {
 void trace_reader_t::statistics() {
     bool close = false;
 	FILE *output = stdout;
-	if(orcs_engine.output_file_name != NULL){
+
+	if (orcs_engine.output_file_name != NULL) {
 		output = fopen(orcs_engine.output_file_name,"a+");
 		close=true;
 	}
-	if (output != NULL){
-			utils_t::largestSeparator(output);
-            fprintf(output,"trace_reader_t\n");
-            fprintf(output,"fetch_instructions: %lu\n", this->fetch_instructions);
-            utils_t::largestSeparator(output);
-        }
-        if(close) fclose(output);
+
+	if (output != NULL) {
+        utils_t::largestSeparator(output);
+        fprintf(output,"trace_reader_t\n");
+        fprintf(output,"fetch_instructions: %lu\n", this->fetch_instructions);
+        utils_t::largestSeparator(output);
+    }
+
+    if (close)
+        fclose(output);
 }
 
 
