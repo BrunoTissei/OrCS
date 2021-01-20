@@ -41,7 +41,7 @@ void instruction_set_t::allocate() {
 
     // Parse instructions
     uint32_t num_instructions = cfg_instructions.getLength();
-    uops_per_instruction.resize(num_instructions);
+    uops_per_instruction.resize(num_instructions + 1);
 
     for (uint32_t i = 0; i < num_instructions; ++i) {
         string name = cfg_instructions[i]["NAME"];
@@ -49,10 +49,10 @@ void instruction_set_t::allocate() {
 
         libconfig::Setting &cfg_inst_uops = cfg_instructions[i]["UOPS"];
         
-        uint32_t n = cfg_inst_uops.getLength();
-        uops_per_instruction[i].resize(n);
+        uint32_t n_uops = cfg_inst_uops.getLength();
+        uops_per_instruction[i].resize(n_uops);
 
-        for (uint32_t j = 0; j < n; ++j) {
+        for (uint32_t j = 0; j < n_uops; ++j) {
             uint32_t u_id = uops_id[cfg_inst_uops[j]];
             uops_per_instruction[i][j] = u_id;
         }

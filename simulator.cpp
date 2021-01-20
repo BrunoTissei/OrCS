@@ -246,7 +246,8 @@ int main(int argc, char **argv) {
         #if HEARTBEAT
             if(orcs_engine.get_global_cycle()%HEARTBEAT_CLOCKS==0){
                 gettimeofday(&orcs_engine.stat_timer_end, NULL);
-                ORCS_PRINTF("%s\n",get_status_execution(NUMBER_OF_PROCESSORS).c_str())
+                ORCS_PRINTF("%s\n",get_status_execution(NUMBER_OF_PROCESSORS).c_str());
+                fflush(stdout);
             }
         #endif
         orcs_engine.memory_controller->clock();
