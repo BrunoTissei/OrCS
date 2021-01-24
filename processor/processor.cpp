@@ -980,8 +980,6 @@ void processor_t::fetch(){
 			WriteRegs   = NULL
 	============================================================================
 */
-std::map<std::string, int> instr_cnt;
-
 void processor_t::decode(){
 	#if DECODE_DEBUG
 		ORCS_PRINTF("Decode Stage\n")
@@ -1000,7 +998,6 @@ void processor_t::decode(){
 
 
         opcode_package_t *instr = this->fetchBuffer.front();
-        instr_cnt[std::string(instr->opcode_assembly)]++;
         instruction_set_t *instr_set = orcs_engine.instruction_set;
         instruction_operation_t instr_op = instr->opcode_operation;
 
@@ -2937,10 +2934,6 @@ void processor_t::statistics(){
 		output = fopen(orcs_engine.output_file_name,"a+");
 		close=true;
 	}
-
-    for (auto it : instr_cnt) {
-        std::cout << it.first << " " << it.second << '\n';
-    }
 
 	if (output != NULL){
 		utils_t::largestSeparator(output);
