@@ -81,7 +81,6 @@ void cache_manager_t::get_cache_levels(cacheId_t cache_type, libconfig::Setting 
     vector<uint32_t> clevels, camount;
     libconfig::Setting &cfg_caches = cfg_cache_defs[string_cache_type];
     uint32_t N_CACHES = cfg_caches.getLength();
-
     for (uint32_t i = 0; i < N_CACHES; i++) {
         try {
             libconfig::Setting &cfg_cache = cfg_caches[i];
@@ -98,14 +97,15 @@ void cache_manager_t::get_cache_levels(cacheId_t cache_type, libconfig::Setting 
     clevels.erase(std::unique(clevels.begin(), clevels.end()), clevels.end());
     clevels.shrink_to_fit();
 
+//TODO CHECK DCACHE_AMOUNT masks.
     if (cache_type == 0) {
-        set_INSTRUCTION_LEVELS(N_CACHES);
+        set_INSTRUCTION_LEVELS(clevels.size());
         ICACHE_AMOUNT = new uint32_t[INSTRUCTION_LEVELS]();
         for (uint32_t i = 0; i < INSTRUCTION_LEVELS; i++) {
             ICACHE_AMOUNT[i] = std::count(camount.begin(), camount.end(), i);
         }
     } else {
-        set_DATA_LEVELS(N_CACHES);
+        set_DATA_LEVELS(clevels.size());
         DCACHE_AMOUNT = new uint32_t[DATA_LEVELS]();
         for (uint32_t i = 0; i < DATA_LEVELS; i++) {
             DCACHE_AMOUNT[i] = std::count(camount.begin(), camount.end(), i);
@@ -113,6 +113,8 @@ void cache_manager_t::get_cache_levels(cacheId_t cache_type, libconfig::Setting 
         //POINTER_LEVELS = 3;
         POINTER_LEVELS = ((INSTRUCTION_LEVELS > DATA_LEVELS) ? INSTRUCTION_LEVELS : DATA_LEVELS);
     }
+
+	//valgrind accused memory leak even when using delete, swapping actually solved the issue to erase these vectors.
     std::vector<uint32_t>().swap(clevels);
     std::vector<uint32_t>().swap(camount);
 }
@@ -242,9 +244,9 @@ void cache_manager_t::allocate(uint32_t NUMBER_OF_PROCESSORS) {
     }
 }
 
-// Dependending on processor_id, returns its correspondent cache
+// Dependending on processor_id, returns its correspondent data caches
 void cache_manager_t::generateIndexArray(uint32_t processor_id, int32_t *cache_indexes) {
-    for (i = 0; i < POINTER_LEVELS; i++) {
+    for (uint32_t i = 0; i < POINTER_LEVELS; i++) {
         cache_indexes[i] = (int32_t) processor_id & (DCACHE_AMOUNT[i] - 1);
     }
 }
