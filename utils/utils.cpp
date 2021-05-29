@@ -50,7 +50,7 @@ uint64_t utils_t::get_power_of_two(uint64_t n) {
         return 0;
     }
 
-    ERROR_ASSERT_PRINTF(check_if_power_of_two(n), "Trying to get a log2 of a non power of two number %" PRIu64 ".\n", n);
+    //ERROR_ASSERT_PRINTF(check_if_power_of_two(n), "Trying to get a log2 of a non power of two number %" PRIu64 ".\n", n);
     int64_t log2 = -1;
     while (n != 0) {
         n >>= 1;

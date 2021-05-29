@@ -284,11 +284,12 @@ bool trace_reader_t::trace_string_to_opcode(char *input_string, opcode_package_t
     auto &inst_id = orcs_engine.instruction_set->instructions_id;
     std::string op_asm = std::string(opcode->opcode_assembly);
 
-    if (inst_id.find(op_asm) != inst_id.end()) {
+    if (inst_id.find(op_asm) != inst_id.end() && op_asm != "VXORPD_XMMdq_XMMdq_XMMdq+R128+R128+R128") {
         opcode->instruction_id = inst_id[op_asm];
     } else {
         // Last inst_id has 0 uops, used when instruction is not represented
-        opcode->instruction_id = inst_id.size() - 1;
+        //opcode->instruction_id = inst_id.size() - 1;
+        opcode->instruction_id = 0;
     }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
@@ -499,11 +500,12 @@ bool trace_reader_t::pin_next(opcode_package_t *m) {
     auto &inst_id = orcs_engine.instruction_set->instructions_id;
     std::string op_asm = std::string(m->opcode_assembly);
 
-    if (inst_id.find(op_asm) != inst_id.end()) {
+    if (inst_id.find(op_asm) != inst_id.end() && op_asm != "VXORPD_XMMdq_XMMdq_XMMdq+R128+R128+R128") {
         m->instruction_id = inst_id[op_asm];
     } else {
         // Last inst_id has 0 uops, used when instruction is not represented
-        m->instruction_id = inst_id.size() - 1;
+        // m->instruction_id = inst_id.size() - 1;
+        m->instruction_id = 0;
     }
 
     sub_string = strtok_r(NULL, " ", &tmp_ptr);
