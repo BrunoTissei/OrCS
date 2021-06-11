@@ -585,6 +585,8 @@ void processor_t::allocate() {
 	// Alocate functional units
     int num_fus = orcs_engine.instruction_set->functional_units.size();
     this->functional_units.resize(num_fus);
+    this->functional_units_count.resize(num_fus, 0);
+    this->functional_units_exec_count.resize(num_fus, 0);
 
     for (int i = 0; i < num_fus; ++i) {
         this->functional_units[i].allocate(
@@ -1315,6 +1317,8 @@ void processor_t::decode(){
                     &(this->functional_units[uop.fu_id]),
                     *instr);
 
+                this->functional_units_count[uop.fu_id] += 1;
+
                 if (instr->is_read || instr->is_read2)
                 {
                     // ===== Read Regs =============================================
@@ -1376,6 +1380,8 @@ void processor_t::decode(){
                     0, 0,
                     this->LATENCY_INTEGER_ALU, this->WAIT_NEXT_INT_ALU, &(this->functional_units[0]),
                     *instr);
+
+            this->functional_units_count[0] += 1;
 
 			if (instr->is_read || instr->is_read2)
 			{
@@ -2007,6 +2013,8 @@ void processor_t::dispatch(){
                 {
                     if (fu->slot[k] <= orcs_engine.get_global_cycle())
                     {
+                        this->functional_units_exec_count[fu->id] += 1;
+
                         fu->slot[k] = orcs_engine.get_global_cycle() + fu->wait_next;
                         fu->dispatch_cnt++;
                         dispatched = true;
@@ -2945,6 +2953,17 @@ void processor_t::statistics(){
 		uint64_t plevels = orcs_engine.cacheManager->get_POINTER_LEVELS();
 		int32_t *cache_indexes = new int32_t[plevels]();
 		orcs_engine.cacheManager->generateIndexArray(this->processor_id, cache_indexes);
+
+        fprintf(output, "FU usage:\n");
+        for (size_t i = 0; i < this->functional_units_count.size(); ++i) {
+            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count[i]);
+        }
+        fprintf(output, "FU exec count:\n");
+        for (size_t i = 0; i < this->functional_units_exec_count.size(); ++i) {
+            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_exec_count[i]);
+        }
+        fprintf(output, "\n\n");
+
 
 		//assuming you want LLC, plevels-1 should be LLC
 		fprintf(output, "MPKI:                             %lf\n", (float)orcs_engine.cacheManager->data_cache[plevels-1][cache_indexes[plevels-1]].get_cache_miss()/((float)this->fetchCounter/1000));

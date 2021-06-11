@@ -357,6 +357,8 @@ class processor_t {
 		// Funcional Unitis - FUs
 		// ======================
         std::vector<functional_unit_t> functional_units;
+        std::vector<uint64_t> functional_units_count;
+        std::vector<uint64_t> functional_units_exec_count;
 
 		// Memory FUs
         functional_unit_t fu_mem_load;
