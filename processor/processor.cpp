@@ -594,6 +594,7 @@ void processor_t::allocate() {
         );
     }
 
+
 	// Allocate memory functional units
 	this->fu_mem_load.allocate(fu_cnt++, LOAD_UNIT, WAIT_NEXT_MEM_LOAD);
 	this->fu_mem_store.allocate(fu_cnt++, STORE_UNIT, WAIT_NEXT_MEM_STORE);
@@ -604,6 +605,14 @@ void processor_t::allocate() {
 	if (get_HAS_VIMA())
         this->fu_mem_vima.allocate(fu_cnt++, VIMA_UNIT, WAIT_NEXT_MEM_VIMA);
 
+    this->functional_units_names.resize(fu_cnt);
+
+    for (auto it : orcs_engine.instruction_set->fu_id) {
+        this->functional_units_names[it.second] = it.first;
+    }
+
+    this->functional_units_names[num_fus] = "LOAD_UNIT";
+    this->functional_units_names[num_fus + 1] = "STORE_UNIT";
 
     this->functional_units_count.resize(fu_cnt, 0);
     this->functional_units_count_exec.resize(fu_cnt, 0);
@@ -2971,25 +2980,25 @@ void processor_t::statistics(){
 
         fprintf(output, "FU decode:\n");
         for (size_t i = 0; i < this->functional_units_count.size(); ++i) {
-            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count[i]);
+            fprintf(output, "%s: %lu\n", this->functional_units_names[i].c_str(), this->functional_units_count[i]);
         }
         fprintf(output, "\n");
 
         fprintf(output, "FU dispatch count:\n");
         for (size_t i = 0; i < this->functional_units_count_dispatch.size(); ++i) {
-            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_dispatch[i]);
+            fprintf(output, "%s: %lu\n", this->functional_units_names[i].c_str(), this->functional_units_count_dispatch[i]);
         }
         fprintf(output, "\n");
 
         fprintf(output, "FU exec count:\n");
         for (size_t i = 0; i < this->functional_units_count_exec.size(); ++i) {
-            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_exec[i]);
+            fprintf(output, "%s: %lu\n", this->functional_units_names[i].c_str(), this->functional_units_count_exec[i]);
         }
         fprintf(output, "\n");
 
         fprintf(output, "FU completed count:\n");
         for (size_t i = 0; i < this->functional_units_count_completed.size(); ++i) {
-            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_completed[i]);
+            fprintf(output, "%s: %lu\n", this->functional_units_names[i].c_str(), this->functional_units_count_completed[i]);
         }
         fprintf(output, "\n\n");
 
