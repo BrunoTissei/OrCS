@@ -358,7 +358,9 @@ class processor_t {
 		// ======================
         std::vector<functional_unit_t> functional_units;
         std::vector<uint64_t> functional_units_count;
-        std::vector<uint64_t> functional_units_exec_count;
+        std::vector<uint64_t> functional_units_count_exec;
+        std::vector<uint64_t> functional_units_count_dispatch;
+        std::vector<uint64_t> functional_units_count_completed;
 
 		// Memory FUs
         functional_unit_t fu_mem_load;

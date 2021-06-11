@@ -585,8 +585,6 @@ void processor_t::allocate() {
 	// Alocate functional units
     int num_fus = orcs_engine.instruction_set->functional_units.size();
     this->functional_units.resize(num_fus);
-    this->functional_units_count.resize(num_fus, 0);
-    this->functional_units_exec_count.resize(num_fus, 0);
 
     for (int i = 0; i < num_fus; ++i) {
         this->functional_units[i].allocate(
@@ -605,6 +603,13 @@ void processor_t::allocate() {
 
 	if (get_HAS_VIMA())
         this->fu_mem_vima.allocate(fu_cnt++, VIMA_UNIT, WAIT_NEXT_MEM_VIMA);
+
+
+    this->functional_units_count.resize(fu_cnt, 0);
+    this->functional_units_count_exec.resize(fu_cnt, 0);
+    this->functional_units_count_dispatch.resize(fu_cnt, 0);
+    this->functional_units_count_completed.resize(fu_cnt, 0);
+
 
 	// reserving space to uops on UFs pipeline, waitng to executing ends
 	this->unified_reservation_station.reserve(ROB_SIZE);
@@ -1204,6 +1209,8 @@ void processor_t::decode(){
                     this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
                     *this->fetchBuffer.front());
 
+            this->functional_units_count[this->fu_mem_load.id]++;
+
             // If op is not load, clear registers
 			if (instr_op != INSTRUCTION_OPERATION_MEM_LOAD)
 			{
@@ -1254,6 +1261,8 @@ void processor_t::decode(){
                     instr->read2_size,
                     this->LATENCY_MEM_LOAD, this->WAIT_NEXT_MEM_LOAD, &(this->fu_mem_load),
                     *instr);
+            
+            this->functional_units_count[this->fu_mem_load.id]++;
 
             // If op is not load, clear registers
 			if (instr_op != INSTRUCTION_OPERATION_MEM_LOAD)
@@ -1446,6 +1455,8 @@ void processor_t::decode(){
                     instr->write_size,
                     this->LATENCY_MEM_STORE, this->WAIT_NEXT_MEM_STORE, &(this->fu_mem_store),
                     *instr);
+
+            this->functional_units_count[this->fu_mem_store.id]++;
 
 			//
 			if (instr_op != INSTRUCTION_OPERATION_MEM_STORE)
@@ -2013,7 +2024,7 @@ void processor_t::dispatch(){
                 {
                     if (fu->slot[k] <= orcs_engine.get_global_cycle())
                     {
-                        this->functional_units_exec_count[fu->id] += 1;
+                        this->functional_units_count_dispatch[fu->id] += 1;
 
                         fu->slot[k] = orcs_engine.get_global_cycle() + fu->wait_next;
                         fu->dispatch_cnt++;
@@ -2195,6 +2206,9 @@ void processor_t::execute()
 		if (rob_line->uop.readyAt <= orcs_engine.get_global_cycle()){
 			ERROR_ASSERT_PRINTF(rob_line->stage == PROCESSOR_STAGE_EXECUTION, "ROB not on execution state")
 			ERROR_ASSERT_PRINTF(rob_line->uop.status == PACKAGE_STATE_WAIT, "FU with Package not in ready state")
+
+            this->functional_units_count_exec[rob_line->uop.functional_unit->id]++;
+
 			switch (rob_line->uop.uop_operation){
 				// =============================================================
 				// BRANCHES
@@ -2695,6 +2709,7 @@ void processor_t::commit(){
 			this->reorderBuffer[pos_buffer].uop.readyAt <= orcs_engine.get_global_cycle())
 		{
 			this->commit_uop_counter++;
+            this->functional_units_count_completed[this->reorderBuffer[pos_buffer].uop.functional_unit->id]++;
 			switch (this->reorderBuffer[pos_buffer].uop.uop_operation){
 				// INTEGERS ALU
 				case INSTRUCTION_OPERATION_INT_ALU:
@@ -2954,15 +2969,30 @@ void processor_t::statistics(){
 		int32_t *cache_indexes = new int32_t[plevels]();
 		orcs_engine.cacheManager->generateIndexArray(this->processor_id, cache_indexes);
 
-        fprintf(output, "FU usage:\n");
+        fprintf(output, "FU decode:\n");
         for (size_t i = 0; i < this->functional_units_count.size(); ++i) {
             fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count[i]);
         }
+        fprintf(output, "\n");
+
+        fprintf(output, "FU dispatch count:\n");
+        for (size_t i = 0; i < this->functional_units_count_dispatch.size(); ++i) {
+            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_dispatch[i]);
+        }
+        fprintf(output, "\n");
+
         fprintf(output, "FU exec count:\n");
-        for (size_t i = 0; i < this->functional_units_exec_count.size(); ++i) {
-            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_exec_count[i]);
+        for (size_t i = 0; i < this->functional_units_count_exec.size(); ++i) {
+            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_exec[i]);
+        }
+        fprintf(output, "\n");
+
+        fprintf(output, "FU completed count:\n");
+        for (size_t i = 0; i < this->functional_units_count_completed.size(); ++i) {
+            fprintf(output, "FU #%lu: %lu\n", i, this->functional_units_count_completed[i]);
         }
         fprintf(output, "\n\n");
+
 
 
 		//assuming you want LLC, plevels-1 should be LLC
